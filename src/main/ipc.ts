@@ -2,6 +2,7 @@ import { app, globalShortcut, ipcMain } from 'electron'
 import { IPC, type AppInfo } from '@shared/ipc'
 import { displayHotkey, PANEL_HOTKEY } from './shortcuts'
 import { hidePanel, togglePanel } from './windows/panelWindow'
+import { clearApiKey, hasApiKey, saveApiKey } from './settings'
 
 /**
  * Everything the Vue windows can ask the main process to do.
@@ -16,4 +17,8 @@ export function registerIpcHandlers(): void {
 
   ipcMain.on(IPC.togglePanel, () => togglePanel())
   ipcMain.on(IPC.hidePanel, () => hidePanel())
+
+  ipcMain.handle(IPC.hasApiKey, () => hasApiKey())
+  ipcMain.handle(IPC.saveApiKey, (_event, key: unknown) => saveApiKey(key))
+  ipcMain.handle(IPC.clearApiKey, () => clearApiKey())
 }

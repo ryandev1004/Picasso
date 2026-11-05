@@ -6,6 +6,9 @@ export const IPC = {
   togglePanel: 'panel:toggle',
   hidePanel: 'panel:hide',
   panelShown: 'panel:shown',
+  hasApiKey: 'apiKey:has',
+  saveApiKey: 'apiKey:save',
+  clearApiKey: 'apiKey:clear',
 } as const
 
 export interface AppInfo {
@@ -16,6 +19,9 @@ export interface AppInfo {
   hotkeyActive: boolean
 }
 
+/** Result of saving the API key. On failure, `error` is a message to show the user. */
+export type SaveApiKeyResult = { ok: true } | { ok: false; error: string }
+
 /** What the preload script exposes to the Vue windows as `window.picasso`. */
 export interface PicassoAPI {
   getAppInfo(): Promise<AppInfo>
@@ -23,4 +29,8 @@ export interface PicassoAPI {
   hidePanel(): void
   /** Runs `callback` every time the panel is shown. Returns an unsubscribe function. */
   onPanelShown(callback: () => void): () => void
+  /** Whether a Claude API key is saved. There's deliberately no way to read the key itself. */
+  hasApiKey(): Promise<boolean>
+  saveApiKey(key: string): Promise<SaveApiKeyResult>
+  clearApiKey(): Promise<void>
 }

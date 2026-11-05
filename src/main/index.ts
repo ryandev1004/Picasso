@@ -4,6 +4,7 @@ import { createPanelWindow } from "./windows/panelWindow";
 import { registerShortcuts, unregisterShortcuts } from "./shortcuts";
 import { registerIpcHandlers } from "./ipc";
 import { createTray } from "./tray";
+import { wasLaunchedAtLogin } from "./launchAtLogin";
 
 // Only one Picasso may run at a time, otherwise two copies fight over the global hotkey.
 if (!app.requestSingleInstanceLock()) {
@@ -17,7 +18,8 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     registerIpcHandlers();
 
-    createMainWindow();
+    // Started by Windows at login: stay in the tray until someone opens the window.
+    if (!wasLaunchedAtLogin()) createMainWindow();
 
     // Create the panel up front (hidden) so the hotkey opens it instantly.
     createPanelWindow();

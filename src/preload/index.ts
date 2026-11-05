@@ -12,6 +12,9 @@ const api: PicassoAPI = {
     ipcRenderer.on(IPC.panelShown, listener)
     return () => ipcRenderer.removeListener(IPC.panelShown, listener)
   },
+  hasApiKey: () => ipcRenderer.invoke(IPC.hasApiKey),
+  saveApiKey: (key) => ipcRenderer.invoke(IPC.saveApiKey, key),
+  clearApiKey: () => ipcRenderer.invoke(IPC.clearApiKey),
 }
 
 contextBridge.exposeInMainWorld('picasso', api)
