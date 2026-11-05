@@ -1,0 +1,29 @@
+{
+  "name": "picasso",
+  "version": "1.0.0",
+  "description": "No time to draw your notes during lecture? No problem, Picasso is here!",
+  "type": "commonjs",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web"
+  },
+  "author": "Ryan Sullivan",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "electron": "^45.2.3",
+    "electron-vite": "^6.0.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.6",
+    "vue-tsc": "^3.3.14"
+  },
+  "dependencies": {
+    "vue": "^3.5.45"
+  }
+}
