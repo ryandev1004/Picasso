@@ -1,40 +1,38 @@
-import { app, BrowserWindow } from 'electron'
-import { createMainWindow } from './windows/mainWindow'
-import { createPanelWindow } from './windows/panelWindow'
-import { registerShortcuts, unregisterShortcuts } from './shortcuts'
-import { registerIpcHandlers } from './ipc'
+import { app, Tray } from "electron";
+import { createMainWindow, showMainWindow } from "./windows/mainWindow";
+import { createPanelWindow } from "./windows/panelWindow";
+import { registerShortcuts, unregisterShortcuts } from "./shortcuts";
+import { registerIpcHandlers } from "./ipc";
+import { createTray } from "./tray";
 
 // Only one Picasso may run at a time, otherwise two copies fight over the global hotkey.
 if (!app.requestSingleInstanceLock()) {
-  app.quit()
+  app.quit();
 } else {
-  let mainWindow: BrowserWindow | null = null
+  // Hold onto the tray, or it can be garbage-collected and the icon vanishes.
+  let tray: Tray | null = null;
 
-  app.on('second-instance', () => {
-    if (!mainWindow) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
-  })
+  app.on("second-instance", () => showMainWindow());
 
   app.whenReady().then(() => {
-    registerIpcHandlers()
+    registerIpcHandlers();
 
-    mainWindow = createMainWindow()
-    
-    // TODO: Handle closing to tray instead of closing then quitting the whole app.
-    mainWindow.on('closed', () => {
-      mainWindow = null
-      app.quit()
-    })
+    createMainWindow();
 
     // Create the panel up front (hidden) so the hotkey opens it instantly.
-    createPanelWindow()
-    registerShortcuts()
+    createPanelWindow();
+    registerShortcuts();
 
-    app.on('activate', () => {
-      if (!mainWindow) mainWindow = createMainWindow()
-    })
-  })
+    tray = createTray();
 
-  app.on('will-quit', unregisterShortcuts)
+    app.on("activate", () => showMainWindow());
+  });
+
+  // When a user closes their window, we prevent the app from quitting so it stays in the tray.
+  app.on("window-all-closed", () => {});
+
+  app.on("will-quit", () => {
+    unregisterShortcuts();
+    tray?.destroy();
+  });
 }
