@@ -10,6 +10,7 @@ export const IPC = {
   saveApiKey: "apiKey:save",
   clearApiKey: "apiKey:clear",
   generateDiagram: "agent:generate-diagram",
+  redrawDiagram: "agent:redraw-diagram",
   approveDiagram: "diagram:approve",
 } as const;
 
@@ -28,6 +29,13 @@ export type SaveApiKeyResult = { ok: true } | { ok: false; error: string };
 export type AgentResponse =
   { ok: true; svg: string } | { ok: false; error: string };
 
+/** What Redraw sends: the first description, the diagram on screen, and what to change about it. */
+export interface RedrawRequest {
+  description: string;
+  svg: string;
+  change: string;
+}
+
 /** Result of approving a diagram. On failure, `error` is a message to show the user. */
 export type ApproveDiagramResult = { ok: true } | { ok: false; error: string };
 
@@ -44,6 +52,8 @@ export interface PicassoAPI {
   clearApiKey(): Promise<void>;
   /** Generates a diagram from the given prompt. */
   generateDiagram(prompt: string): Promise<AgentResponse>;
+  /** Edits the diagram on screen according to `change`, keeping the rest of it the same. */
+  redrawDiagram(request: RedrawRequest): Promise<AgentResponse>;
   /** Puts the approved diagram (PNG bytes) on the clipboard and hides the panel. */
   approveDiagram(png: Uint8Array): Promise<ApproveDiagramResult>;
 }

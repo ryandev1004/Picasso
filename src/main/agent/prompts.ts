@@ -1,4 +1,6 @@
 // Claude constants and system prompt for the agent model.
+import type { RedrawRequest } from "@shared/ipc";
+
 export const MODEL = "claude-sonnet-5-5";
 export const EFFORT = "medium"; // compare against "medium" in step 7
 export const MAX_TOKENS = 16000; // generous, so the SVG never gets cut off
@@ -20,6 +22,23 @@ Follow these rules:
 - Fit the viewBox to the diagram and center the drawing in it, so there's no big empty area wasting space in the student's notes.
 - Never put white or light text on the white background. White text is fine inside dark shapes, but use dark text on mid-tone fills.
 - Use only shapes, text and paths. Don't use <script>, event handlers like onclick, <foreignObject>, <image>, links or external fonts.
-- Keep it simple: clear labels, space between elements, and at most 3 colors.`;
+- Keep it simple: clear labels, space between elements, and at most 3 colors.
+
+When the student asks to change a diagram, you'll get the current SVG along with their change. Edit that SVG instead of starting over: keep its layout, ids, colors and everything the change doesn't mention the same, so the diagram they're looking at doesn't jump around. Still reply with the complete SVG.`;
+
+/** The message Redraw sends: the first description, the diagram on screen, and the change. */
+export function redrawPrompt({
+  description,
+  svg,
+  change,
+}: RedrawRequest): string {
+  return `<original_request>${description}</original_request>
+
+<current_diagram>
+${svg}
+</current_diagram>
+
+<change>${change}</change>`;
+}
 
 // TODO: Add more detailed instructions and references for specific diagrams and graphs.

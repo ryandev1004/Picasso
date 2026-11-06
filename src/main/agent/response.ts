@@ -1,9 +1,26 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { AgentResponse } from "@shared/ipc";
-import { MODEL, EFFORT, MAX_TOKENS, SYSTEM_PROMPT } from "./prompts";
+import type { AgentResponse, RedrawRequest } from "@shared/ipc";
+import {
+  MODEL,
+  EFFORT,
+  MAX_TOKENS,
+  SYSTEM_PROMPT,
+  redrawPrompt,
+} from "./prompts";
 import { readApiKey } from "../settings";
 
-export async function generateDiagram(prompt: string): Promise<AgentResponse> {
+/** Draws a new diagram from a description. */
+export function generateDiagram(prompt: string): Promise<AgentResponse> {
+  return requestDiagram(prompt);
+}
+
+/** Edits the diagram on screen instead of drawing a new one, so the rest of it stays put. */
+export function redrawDiagram(request: RedrawRequest): Promise<AgentResponse> {
+  return requestDiagram(redrawPrompt(request));
+}
+
+/** Sends one message to Claude and pulls the SVG out of the reply. */
+async function requestDiagram(prompt: string): Promise<AgentResponse> {
   // Read the key on every call, so a key saved or changed in Settings is used right away.
   const apiKey = await readApiKey();
   if (!apiKey)

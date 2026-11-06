@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, useTemplateRef } from "vue";
+import type { AgentResponse } from "@shared/ipc";
 import { svgDataUrl, svgToPng } from "./svgImage";
 
 const input = ref(""); // the text box at the bottom
@@ -31,17 +32,17 @@ function reset(): void {
   error.value = "";
 }
 
-/** Redraws send Claude the original request plus every change asked for so far. */
+/** A fresh drawing ("try again") still includes every change asked for so far. */
 function buildPrompt(text: string, edits: string[]): string {
   if (edits.length === 0) return text;
   return `${text}\n\nChanges to make:\n${edits.map((edit) => `- ${edit}`).join("\n")}`;
 }
 
-/** Asks Claude for a drawing. Returns whether a new version was added. */
-async function draw(prompt: string): Promise<boolean> {
+/** Runs one request to Claude. Returns whether a new version was added. */
+async function draw(send: () => Promise<AgentResponse>): Promise<boolean> {
   busy.value = "drawing";
   error.value = "";
-  const result = await window.picasso.generateDiagram(prompt);
+  const result = await send();
   busy.value = "";
 
   if (!result.ok) {
@@ -60,16 +61,29 @@ async function submit(): Promise<void> {
   if (!hasDrawing.value) {
     if (!text) return;
     request.value = text;
-    if (await draw(text)) input.value = "";
-    else request.value = "";
+    if (await draw(() => window.picasso.generateDiagram(text))) {
+      input.value = "";
+    } else {
+      request.value = "";
+    }
     return;
   }
 
-  // An empty box means "try again"; otherwise the change joins the earlier ones.
-  const edits = text ? [...changes.value, text] : changes.value;
-  if (await draw(buildPrompt(request.value, edits))) {
-    changes.value = edits;
-    input.value = "";
+  if (!text) {
+    // An empty box means "try again": a fresh drawing of the request and its changes so far.
+    const prompt = buildPrompt(request.value, changes.value);
+    await draw(() => window.picasso.generateDiagram(prompt));
+  } else {
+    // A change edits the diagram on screen, so only what was asked for moves.
+    const current = {
+      description: request.value,
+      svg: latest.value,
+      change: text,
+    };
+    if (await draw(() => window.picasso.redrawDiagram(current))) {
+      changes.value = [...changes.value, text];
+      input.value = "";
+    }
   }
   focusInput();
 }

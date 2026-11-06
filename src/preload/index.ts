@@ -16,6 +16,7 @@ const api: PicassoAPI = {
   saveApiKey: (key) => ipcRenderer.invoke(IPC.saveApiKey, key),
   clearApiKey: () => ipcRenderer.invoke(IPC.clearApiKey),
   generateDiagram: (prompt) => ipcRenderer.invoke(IPC.generateDiagram, prompt),
+  redrawDiagram: (request) => ipcRenderer.invoke(IPC.redrawDiagram, request),
   approveDiagram: (png) => ipcRenderer.invoke(IPC.approveDiagram, png),
 };
 
