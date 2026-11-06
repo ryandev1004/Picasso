@@ -9,6 +9,7 @@ export const IPC = {
   hasApiKey: 'apiKey:has',
   saveApiKey: 'apiKey:save',
   clearApiKey: 'apiKey:clear',
+  generateDiagram: 'agent:generate-diagram',
 } as const
 
 export interface AppInfo {
@@ -36,4 +37,6 @@ export interface PicassoAPI {
   hasApiKey(): Promise<boolean>
   saveApiKey(key: string): Promise<SaveApiKeyResult>
   clearApiKey(): Promise<void>
+  /** Generates a diagram from the given prompt. */
+  generateDiagram(prompt: string): Promise<AgentResponse>
 }

@@ -15,6 +15,7 @@ const api: PicassoAPI = {
   hasApiKey: () => ipcRenderer.invoke(IPC.hasApiKey),
   saveApiKey: (key) => ipcRenderer.invoke(IPC.saveApiKey, key),
   clearApiKey: () => ipcRenderer.invoke(IPC.clearApiKey),
+  generateDiagram: (prompt) => ipcRenderer.invoke(IPC.generateDiagram, prompt),
 }
 
 contextBridge.exposeInMainWorld('picasso', api)

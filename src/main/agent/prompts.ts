@@ -1,7 +1,5 @@
 // Claude constants and system prompt for the agent model.
 
-// What Claude is asked, in one place. generate.ts imports these.
-
 export const MODEL = "claude-opus-5-5";
 export const EFFORT = "low"; // compare against "medium" in step 7
 export const MAX_TOKENS = 16000; // generous, so the SVG never gets cut off
