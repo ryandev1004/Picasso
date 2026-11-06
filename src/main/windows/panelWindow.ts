@@ -1,12 +1,12 @@
-import { BrowserWindow, screen } from 'electron'
-import { IPC } from '@shared/ipc'
-import { loadPage, preloadPath } from './loadPage'
+import { BrowserWindow, screen } from "electron";
+import { IPC } from "@shared/ipc";
+import { loadPage, preloadPath } from "./loadPage";
 
-const WIDTH = 380
-const HEIGHT = 560
-const EDGE_MARGIN = 16
+const WIDTH = 380;
+const HEIGHT = 560;
+const EDGE_MARGIN = 16;
 
-let panel: BrowserWindow | null = null
+let panel: BrowserWindow | null = null;
 
 /**
  * The floating quick-draw panel the hotkey summons. It's created once at startup and then
@@ -28,36 +28,38 @@ export function createPanelWindow(): BrowserWindow {
       preload: preloadPath,
       sandbox: true,
     },
-  })
+  });
 
-  panel.on('closed', () => {
-    panel = null
-  })
+  panel.on("closed", () => {
+    panel = null;
+  });
 
-  loadPage(panel, 'panel')
-  return panel
+  loadPage(panel, "panel");
+  return panel;
 }
 
 export function showPanel(): void {
-  if (!panel) return
+  if (!panel) return;
 
   // Dock to the right edge of whichever screen the mouse is on.
-  const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  const { workArea } = screen.getDisplayNearestPoint(
+    screen.getCursorScreenPoint(),
+  );
   panel.setPosition(
     Math.round(workArea.x + workArea.width - WIDTH - EDGE_MARGIN),
     Math.round(workArea.y + (workArea.height - HEIGHT) / 2),
-  )
+  );
 
-  panel.show()
-  panel.focus()
-  panel.webContents.send(IPC.panelShown)
+  panel.show();
+  panel.focus();
+  panel.webContents.send(IPC.panelShown);
 }
 
 export function hidePanel(): void {
-  panel?.hide()
+  panel?.hide();
 }
 
 export function togglePanel(): void {
-  if (panel?.isVisible()) hidePanel()
-  else showPanel()
+  if (panel?.isVisible()) hidePanel();
+  else showPanel();
 }

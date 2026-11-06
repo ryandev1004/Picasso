@@ -17,17 +17,21 @@ function openPanel(): void {
 <template>
   <main class="home">
     <h1>Picasso</h1>
-    <p class="tagline">No time to draw during lecture? Describe it, and Picasso draws it.</p>
+    <p class="tagline">
+      No time to draw during lecture? Describe it, and Picasso draws it.
+    </p>
 
     <p v-if="info" class="hint">
       Press
       <template v-for="(key, i) in hotkeyKeys" :key="key">
-        <kbd>{{ key }}</kbd><span v-if="i < hotkeyKeys.length - 1"> + </span>
+        <kbd>{{ key }}</kbd
+        ><span v-if="i < hotkeyKeys.length - 1"> + </span>
       </template>
       anywhere to open the quick-draw panel.
     </p>
     <p v-if="info && !info.hotkeyActive" class="warning">
-      Another app is already using this shortcut, so it won't work right now. Change
+      Another app is already using this shortcut, so it won't work right now.
+      Change
       <code>PANEL_HOTKEY</code> in <code>src/main/shortcuts.ts</code>.
     </p>
 

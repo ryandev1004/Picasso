@@ -10,9 +10,17 @@ export async function saveApiKey(key: unknown): Promise<SaveApiKeyResult> {
   // Anything can arrive over IPC, so check it here instead of trusting the renderer.
   const trimmed = typeof key === "string" ? key.trim() : "";
   if (!trimmed) return { ok: false, error: "Paste an API key first." };
-  if (/\s/.test(trimmed)) return { ok: false, error: "API keys don't contain spaces. Check what you pasted." };
+  if (/\s/.test(trimmed))
+    return {
+      ok: false,
+      error: "API keys don't contain spaces. Check what you pasted.",
+    };
   if (!safeStorage.isEncryptionAvailable()) {
-    return { ok: false, error: "Windows encryption isn't available, so the key can't be stored safely." };
+    return {
+      ok: false,
+      error:
+        "Windows encryption isn't available, so the key can't be stored safely.",
+    };
   }
 
   // safeStorage encrypts with the current Windows account, so the file is useless on any other.

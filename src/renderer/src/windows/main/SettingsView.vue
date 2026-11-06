@@ -37,8 +37,8 @@ async function remove(): Promise<void> {
     <section class="card">
       <h3>Claude API key</h3>
       <p class="muted">
-        Picasso draws using your own Claude API key. It's encrypted with your Windows account and
-        stored only on this PC.
+        Picasso draws using your own Claude API key. It's encrypted with your
+        Windows account and stored only on this PC.
       </p>
 
       <p class="status" :class="{ saved: hasKey }">
@@ -53,7 +53,13 @@ async function remove(): Promise<void> {
           spellcheck="false"
           :placeholder="hasKey ? 'Paste a new key to replace it' : 'sk-ant-…'"
         />
-        <button type="submit" class="btn-primary" :disabled="!keyInput.trim() || saving">Save</button>
+        <button
+          type="submit"
+          class="btn-primary"
+          :disabled="!keyInput.trim() || saving"
+        >
+          Save
+        </button>
       </form>
       <p v-if="error" class="error">{{ error }}</p>
 

@@ -10,8 +10,15 @@ const view = ref<"home" | "settings">("home");
 <template>
   <div class="app">
     <nav class="tabs">
-      <button :class="{ active: view === 'home' }" @click="view = 'home'">Home</button>
-      <button :class="{ active: view === 'settings' }" @click="view = 'settings'">Settings</button>
+      <button :class="{ active: view === 'home' }" @click="view = 'home'">
+        Home
+      </button>
+      <button
+        :class="{ active: view === 'settings' }"
+        @click="view = 'settings'"
+      >
+        Settings
+      </button>
     </nav>
 
     <HomeView v-if="view === 'home'" />

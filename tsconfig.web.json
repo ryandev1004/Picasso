@@ -19,5 +19,9 @@
       "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src/renderer/src/**/*", "src/renderer/src/**/*.vue", "src/shared/**/*"]
+  "include": [
+    "src/renderer/src/**/*",
+    "src/renderer/src/**/*.vue",
+    "src/shared/**/*"
+  ]
 }

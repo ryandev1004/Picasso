@@ -46,4 +46,3 @@ export function showMainWindow(): void {
   win.show();
   win.focus();
 }
-
