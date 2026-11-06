@@ -22,6 +22,9 @@ export interface AppInfo {
 /** Result of saving the API key. On failure, `error` is a message to show the user. */
 export type SaveApiKeyResult = { ok: true } | { ok: false; error: string }
 
+/** Result of generating a diagram. On success, `svg` is the diagram's markup; on failure, `error` is a message to show the user. */
+export type AgentResponse = { ok: true; svg: string } | { ok: false; error: string }
+
 /** What the preload script exposes to the Vue windows as `window.picasso`. */
 export interface PicassoAPI {
   getAppInfo(): Promise<AppInfo>
