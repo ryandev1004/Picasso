@@ -17,7 +17,8 @@ Follow these rules:
 - Define arrowheads once as a <marker> inside <defs> and reuse it. Give it markerUnits="userSpaceOnUse" and a size of about 10 by 10, so arrowheads stay the same size on thick and thin lines.
 - Start and end each arrow at the edge of a shape, not its center, and never run an arrow through a box or across text, so every connection is easy to follow. Put arrow labels beside the line, not on top of it.
 - Center text inside shapes with text-anchor="middle" and dominant-baseline="middle". If a label won't fit inside its shape, put it beside the shape with a short line pointing to it, and don't repeat it inside, so nothing is cramped or said twice.
-- Skip <!-- comments --> and titles unless asked.
+- Skip <!-- comments --> and visible titles unless asked.
+- Put a short name for the diagram, 2 to 5 words like "Krebs cycle, simplified", in a <title> element right after the opening <svg> tag. It isn't drawn; it names the diagram in the student's list of drawings.
 - Keep the diagram within the viewBox and avoid overflowing elements.
 - Fit the viewBox to the diagram and center the drawing in it, so there's no big empty area wasting space in the student's notes.
 - Never put white or light text on the white background. White text is fine inside dark shapes, but use dark text on mid-tone fills.

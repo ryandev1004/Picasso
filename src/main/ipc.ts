@@ -1,10 +1,25 @@
-import { app, globalShortcut, ipcMain } from "electron";
-import { IPC, type AppInfo, type RedrawRequest } from "@shared/ipc";
+import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
+import {
+  IPC,
+  type AgentResponse,
+  type AppInfo,
+  type DrawResult,
+  type RedrawRequest,
+} from "@shared/ipc";
 import { displayHotkey, PANEL_HOTKEY } from "./shortcuts";
 import { hidePanel, togglePanel } from "./windows/panelWindow";
 import { clearApiKey, hasApiKey, saveApiKey } from "./settings";
 import { generateDiagram, redrawDiagram } from "./agent/response";
 import { copyDiagramToClipboard } from "./clipboard";
+import {
+  addVersion,
+  deleteDrawing,
+  getDrawing,
+  isDrawingId,
+  listDrawings,
+  markInserted,
+  type NewVersion,
+} from "./history";
 
 const MAX_PROMPT_LENGTH = 1000;
 // A diagram is a few thousand characters, so this leaves lots of room.
@@ -27,34 +42,91 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.hasApiKey, () => hasApiKey());
   ipcMain.handle(IPC.saveApiKey, (_event, key: unknown) => saveApiKey(key));
   ipcMain.handle(IPC.clearApiKey, () => clearApiKey());
-  ipcMain.handle(IPC.generateDiagram, (_event, prompt: unknown) => {
-    if (typeof prompt !== "string") {
-      return { ok: false, error: "Invalid prompt" };
-    } else {
-      const input = prompt.trim();
-      if (input === "") {
-        return { ok: false, error: "Type what you want drawn first." };
+  ipcMain.handle(
+    IPC.generateDiagram,
+    async (_event, prompt: unknown, drawingId: unknown) => {
+      if (typeof prompt !== "string") {
+        return { ok: false, error: "Invalid prompt" };
+      } else {
+        const input = prompt.trim();
+        if (input === "") {
+          return { ok: false, error: "Type what you want drawn first." };
+        }
+        if (input.length > MAX_PROMPT_LENGTH) {
+          return {
+            ok: false,
+            error: "That’s too long. Try a shorter description.",
+          };
+        }
+        // With a drawing id this is an empty Redraw, so the new version joins that drawing.
+        return saveDrawn(await generateDiagram(input), {
+          drawingId,
+          description: input,
+          kind: "retry",
+        });
       }
-      if (input.length > MAX_PROMPT_LENGTH) {
-        return {
-          ok: false,
-          error: "That’s too long. Try a shorter description.",
-        };
-      }
-      return generateDiagram(input);
-    }
-  });
-  ipcMain.handle(IPC.redrawDiagram, (_event, request: unknown) => {
+    },
+  );
+  ipcMain.handle(IPC.redrawDiagram, async (_event, request: unknown) => {
     const checked = checkRedraw(request);
     if (typeof checked === "string") return { ok: false, error: checked };
-    return redrawDiagram(checked);
+    return saveDrawn(await redrawDiagram(checked), {
+      drawingId: checked.drawingId,
+      description: checked.description,
+      kind: "edit",
+      change: checked.change,
+    });
   });
-  ipcMain.handle(IPC.approveDiagram, async (_event, png: unknown) => {
-    const result = await copyDiagramToClipboard(png);
-    // Hiding the panel hands focus back to the notes app, ready for Ctrl+V.
-    if (result.ok) hidePanel();
-    return result;
+  ipcMain.handle(
+    IPC.approveDiagram,
+    async (_event, png: unknown, drawingId: unknown, version: unknown) => {
+      const result = await copyDiagramToClipboard(png);
+      if (!result.ok) return result;
+
+      // Hiding the panel hands focus back to the notes app, ready for Ctrl+V.
+      hidePanel();
+      if (isDrawingId(drawingId) && Number.isInteger(version)) {
+        try {
+          await markInserted(drawingId, version as number);
+          notifyDrawingsChanged();
+        } catch (error) {
+          console.error("[picasso] couldn't mark the drawing inserted:", error);
+        }
+      }
+      return result;
+    },
+  );
+  ipcMain.handle(IPC.copyImage, (_event, png: unknown) =>
+    copyDiagramToClipboard(png),
+  );
+
+  ipcMain.handle(IPC.listDrawings, () => listDrawings());
+  ipcMain.handle(IPC.getDrawing, (_event, id: unknown) =>
+    isDrawingId(id) ? getDrawing(id) : null,
+  );
+  ipcMain.handle(IPC.deleteDrawing, async (_event, id: unknown) => {
+    if (!isDrawingId(id)) return;
+    await deleteDrawing(id);
+    notifyDrawingsChanged();
   });
+}
+
+/** Saves a successful drawing to history and tells the windows. Failures pass straight through. */
+async function saveDrawn(
+  result: AgentResponse,
+  details: Omit<NewVersion, "svg">,
+): Promise<DrawResult> {
+  if (!result.ok) return result;
+  const saved = await addVersion({ ...details, svg: result.svg });
+  notifyDrawingsChanged();
+  return { ok: true, svg: result.svg, ...saved };
+}
+
+/** Tells every open window that the drawings changed, so their lists can reload. */
+function notifyDrawingsChanged(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(IPC.drawingsChanged);
+  }
 }
 
 /**
@@ -65,7 +137,10 @@ function checkRedraw(request: unknown): RedrawRequest | string {
   if (typeof request !== "object" || request === null) {
     return "Invalid redraw request";
   }
-  const { description, svg, change } = request as Record<string, unknown>;
+  const { description, svg, change, drawingId } = request as Record<
+    string,
+    unknown
+  >;
   if (
     typeof description !== "string" ||
     typeof svg !== "string" ||
@@ -87,5 +162,10 @@ function checkRedraw(request: unknown): RedrawRequest | string {
     return "The current diagram couldn't be sent. Try a fresh drawing.";
   }
 
-  return { description: cleanDescription, svg, change: cleanChange };
+  return {
+    description: cleanDescription,
+    svg,
+    change: cleanChange,
+    drawingId: isDrawingId(drawingId) ? drawingId : undefined,
+  };
 }

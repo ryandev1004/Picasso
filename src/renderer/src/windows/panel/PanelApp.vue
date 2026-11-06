@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, useTemplateRef } from "vue";
-import type { AgentResponse } from "@shared/ipc";
-import { svgDataUrl, svgToPng } from "./svgImage";
+import type { DrawResult } from "@shared/ipc";
+import { svgDataUrl, svgToPng } from "@renderer/lib/svgImage";
 
 const input = ref(""); // the text box at the bottom
 const request = ref(""); // the first description, shown above the preview
 const changes = ref<string[]>([]); // every "What should change?" that has been drawn
 const versions = ref<string[]>([]); // every SVG drawn for this request; the last one is shown
+const drawingId = ref<string>(); // where main saves this drawing's versions in history
+const versionNumber = ref(0); // the saved number of the version on screen (the "v" badge)
 const busy = ref<"" | "drawing" | "copying">("");
 const error = ref("");
 const promptInput = useTemplateRef<HTMLInputElement>("prompt-input");
@@ -29,6 +31,8 @@ function reset(): void {
   request.value = "";
   changes.value = [];
   versions.value = [];
+  drawingId.value = undefined;
+  versionNumber.value = 0;
   error.value = "";
 }
 
@@ -38,8 +42,8 @@ function buildPrompt(text: string, edits: string[]): string {
   return `${text}\n\nChanges to make:\n${edits.map((edit) => `- ${edit}`).join("\n")}`;
 }
 
-/** Runs one request to Claude. Returns whether a new version was added. */
-async function draw(send: () => Promise<AgentResponse>): Promise<boolean> {
+/** Runs one request to Claude (main also saves the result). Returns whether a new version was added. */
+async function draw(send: () => Promise<DrawResult>): Promise<boolean> {
   busy.value = "drawing";
   error.value = "";
   const result = await send();
@@ -50,6 +54,8 @@ async function draw(send: () => Promise<AgentResponse>): Promise<boolean> {
     return false;
   }
   versions.value.push(result.svg);
+  drawingId.value = result.drawingId;
+  versionNumber.value = result.version;
   return true;
 }
 
@@ -72,13 +78,14 @@ async function submit(): Promise<void> {
   if (!text) {
     // An empty box means "try again": a fresh drawing of the request and its changes so far.
     const prompt = buildPrompt(request.value, changes.value);
-    await draw(() => window.picasso.generateDiagram(prompt));
+    await draw(() => window.picasso.generateDiagram(prompt, drawingId.value));
   } else {
     // A change edits the diagram on screen, so only what was asked for moves.
     const current = {
       description: request.value,
       svg: latest.value,
       change: text,
+      drawingId: drawingId.value,
     };
     if (await draw(() => window.picasso.redrawDiagram(current))) {
       changes.value = [...changes.value, text];
@@ -96,7 +103,11 @@ async function approve(): Promise<void> {
   busy.value = "copying";
   error.value = "";
   try {
-    const result = await window.picasso.approveDiagram(await svgToPng(svg));
+    const result = await window.picasso.approveDiagram(
+      await svgToPng(svg),
+      drawingId.value,
+      versionNumber.value,
+    );
     if (result.ok) reset();
     else error.value = result.error;
   } catch (err) {
@@ -166,7 +177,7 @@ onUnmounted(() => {
           :src="svgDataUrl(latest)"
           :alt="`Diagram: ${request}`"
         />
-        <span v-if="hasDrawing" class="badge">v{{ versions.length }}</span>
+        <span v-if="hasDrawing" class="badge">v{{ versionNumber }}</span>
 
         <span v-if="busy === 'drawing'" class="label">
           {{ hasDrawing ? "Redrawing…" : "Drawing…" }}

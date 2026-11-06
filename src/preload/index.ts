@@ -15,9 +15,20 @@ const api: PicassoAPI = {
   hasApiKey: () => ipcRenderer.invoke(IPC.hasApiKey),
   saveApiKey: (key) => ipcRenderer.invoke(IPC.saveApiKey, key),
   clearApiKey: () => ipcRenderer.invoke(IPC.clearApiKey),
-  generateDiagram: (prompt) => ipcRenderer.invoke(IPC.generateDiagram, prompt),
+  generateDiagram: (prompt, drawingId) =>
+    ipcRenderer.invoke(IPC.generateDiagram, prompt, drawingId),
   redrawDiagram: (request) => ipcRenderer.invoke(IPC.redrawDiagram, request),
-  approveDiagram: (png) => ipcRenderer.invoke(IPC.approveDiagram, png),
+  approveDiagram: (png, drawingId, version) =>
+    ipcRenderer.invoke(IPC.approveDiagram, png, drawingId, version),
+  copyImage: (png) => ipcRenderer.invoke(IPC.copyImage, png),
+  listDrawings: () => ipcRenderer.invoke(IPC.listDrawings),
+  getDrawing: (id) => ipcRenderer.invoke(IPC.getDrawing, id),
+  deleteDrawing: (id) => ipcRenderer.invoke(IPC.deleteDrawing, id),
+  onDrawingsChanged: (callback) => {
+    const listener = (): void => callback();
+    ipcRenderer.on(IPC.drawingsChanged, listener);
+    return () => ipcRenderer.removeListener(IPC.drawingsChanged, listener);
+  },
 };
 
 contextBridge.exposeInMainWorld("picasso", api);

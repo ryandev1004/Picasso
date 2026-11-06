@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import type { AppInfo } from "@shared/ipc";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import type { AppInfo, DrawingSummary } from "@shared/ipc";
+import DrawingList from "./DrawingList.vue";
 import DrawingsView from "./DrawingsView.vue";
 import SettingsView from "./SettingsView.vue";
 
@@ -9,13 +10,58 @@ const view = ref<"drawings" | "settings">("drawings");
 const info = ref<AppInfo | null>(null);
 const hotkeyKeys = computed(() => info.value?.hotkey.split("+") ?? []);
 
-onMounted(async () => {
-  info.value = await window.picasso.getAppInfo();
+const drawings = ref<DrawingSummary[]>([]); // everything saved, newest first
+const loaded = ref(false);
+const query = ref("");
+const selectedId = ref<string | null>(null);
+// With a drawing open: its versions ("thread") or the grid of everything ("all").
+const mode = ref<"thread" | "all">("all");
+
+/** Drawings whose title or description contains every word typed in Search. */
+const filtered = computed(() => {
+  const words = query.value.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return drawings.value;
+  return drawings.value.filter((d) => {
+    const text = `${d.title} ${d.description}`.toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
 });
+
+/** Reloads the list. Runs at start and whenever a drawing is added, changed or deleted. */
+async function loadDrawings(): Promise<void> {
+  drawings.value = await window.picasso.listDrawings();
+  loaded.value = true;
+  // The open drawing was deleted: go back to the grid.
+  if (
+    selectedId.value &&
+    !drawings.value.some((d) => d.id === selectedId.value)
+  ) {
+    selectedId.value = null;
+    mode.value = "all";
+  }
+}
+
+/** Opens a drawing's thread (from the sidebar or a grid card). */
+function select(id: string): void {
+  selectedId.value = id;
+  mode.value = "thread";
+  view.value = "drawings";
+}
 
 function newDrawing(): void {
   window.picasso.togglePanel();
 }
+
+let stopListening: (() => void) | undefined;
+
+onMounted(async () => {
+  // Drawings made in the panel show up here right away.
+  stopListening = window.picasso.onDrawingsChanged(loadDrawings);
+  info.value = await window.picasso.getAppInfo();
+  await loadDrawings();
+});
+
+onUnmounted(() => stopListening?.());
 </script>
 
 <template>
@@ -31,9 +77,22 @@ function newDrawing(): void {
         <span class="keys">{{ hotkeyKeys.join(" ") }}</span>
       </button>
 
-      <!-- Search and the drawing list come alive once drawings are saved (M7). -->
-      <input class="search" placeholder="Search drawings" disabled />
-      <p class="list-empty">Your drawings will show up here.</p>
+      <input
+        v-model="query"
+        class="search"
+        type="search"
+        placeholder="Search drawings"
+        spellcheck="false"
+      />
+
+      <DrawingList
+        class="list"
+        :drawings="filtered"
+        :selected-id="view === 'drawings' ? selectedId : null"
+        :searching="query.trim() !== ''"
+        :loaded="loaded"
+        @select="select"
+      />
 
       <button
         class="nav-item"
@@ -44,7 +103,17 @@ function newDrawing(): void {
       </button>
     </aside>
 
-    <DrawingsView v-if="view === 'drawings'" :info="info" />
+    <DrawingsView
+      v-if="view === 'drawings'"
+      v-model:mode="mode"
+      :drawings="filtered"
+      :total="drawings.length"
+      :loaded="loaded"
+      :selected-id="selectedId"
+      :query="query.trim()"
+      :info="info"
+      @select="select"
+    />
     <SettingsView v-else :info="info" @back="view = 'drawings'" />
   </div>
 </template>
@@ -84,6 +153,7 @@ function newDrawing(): void {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
   height: 36px;
   padding: 0 12px;
   border: 1px solid var(--border);
@@ -102,27 +172,35 @@ function newDrawing(): void {
 }
 
 .search {
+  flex-shrink: 0;
   height: 31px;
   margin-top: 20px;
   padding: 0 12px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: var(--fill);
   outline: none;
+}
+
+.search:focus {
+  border-color: #d6cfc6;
 }
 
 .search::placeholder {
   color: var(--text-muted);
 }
 
-.list-empty {
-  margin: 20px 12px 0;
-  color: var(--text-faint);
-  font-size: 13px;
+/* The list scrolls on its own, so New drawing, Search and Settings stay put. */
+.list {
+  flex: 1;
+  min-height: 0;
+  margin: 8px -4px 8px;
+  padding: 0 4px;
+  overflow-y: auto;
 }
 
 .nav-item {
-  margin-top: auto;
+  flex-shrink: 0;
   padding: 7px 12px;
   border: none;
   border-radius: var(--radius);
