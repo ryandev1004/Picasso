@@ -2,8 +2,9 @@ import { BrowserWindow, screen } from "electron";
 import { IPC } from "@shared/ipc";
 import { loadPage, preloadPath } from "./loadPage";
 
-const WIDTH = 380;
-const HEIGHT = 560;
+// Sized to the panel design (picassomini).
+const WIDTH = 480;
+const HEIGHT = 520;
 const EDGE_MARGIN = 16;
 
 let panel: BrowserWindow | null = null;

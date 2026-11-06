@@ -10,6 +10,7 @@ export const IPC = {
   saveApiKey: "apiKey:save",
   clearApiKey: "apiKey:clear",
   generateDiagram: "agent:generate-diagram",
+  approveDiagram: "diagram:approve",
 } as const;
 
 export interface AppInfo {
@@ -27,6 +28,9 @@ export type SaveApiKeyResult = { ok: true } | { ok: false; error: string };
 export type AgentResponse =
   { ok: true; svg: string } | { ok: false; error: string };
 
+/** Result of approving a diagram. On failure, `error` is a message to show the user. */
+export type ApproveDiagramResult = { ok: true } | { ok: false; error: string };
+
 /** What the preload script exposes to the Vue windows as `window.picasso`. */
 export interface PicassoAPI {
   getAppInfo(): Promise<AppInfo>;
@@ -40,4 +44,6 @@ export interface PicassoAPI {
   clearApiKey(): Promise<void>;
   /** Generates a diagram from the given prompt. */
   generateDiagram(prompt: string): Promise<AgentResponse>;
+  /** Puts the approved diagram (PNG bytes) on the clipboard and hides the panel. */
+  approveDiagram(png: Uint8Array): Promise<ApproveDiagramResult>;
 }

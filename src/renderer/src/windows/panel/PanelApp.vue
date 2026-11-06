@@ -1,9 +1,17 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, useTemplateRef } from "vue";
+import { computed, onMounted, onUnmounted, ref, useTemplateRef } from "vue";
+import { svgDataUrl, svgToPng } from "./svgImage";
 
-const prompt = ref("");
-const lastPrompt = ref("");
+const input = ref(""); // the text box at the bottom
+const request = ref(""); // the first description, shown above the preview
+const changes = ref<string[]>([]); // every "What should change?" that has been drawn
+const versions = ref<string[]>([]); // every SVG drawn for this request; the last one is shown
+const busy = ref<"" | "drawing" | "copying">("");
+const error = ref("");
 const promptInput = useTemplateRef<HTMLInputElement>("prompt-input");
+
+const latest = computed(() => versions.value[versions.value.length - 1]);
+const hasDrawing = computed(() => versions.value.length > 0);
 
 function focusInput(): void {
   promptInput.value?.focus();
@@ -14,16 +22,88 @@ function hide(): void {
   window.picasso.hidePanel();
 }
 
-function submit(): void {
-  const text = prompt.value.trim();
-  if (!text) return;
-  // Later: send `text` to the main process, which calls the AI and returns a drawing.
-  lastPrompt.value = text;
-  prompt.value = "";
+/** Back to an empty panel, ready for the next diagram. */
+function reset(): void {
+  input.value = "";
+  request.value = "";
+  changes.value = [];
+  versions.value = [];
+  error.value = "";
+}
+
+/** Redraws send Claude the original request plus every change asked for so far. */
+function buildPrompt(text: string, edits: string[]): string {
+  if (edits.length === 0) return text;
+  return `${text}\n\nChanges to make:\n${edits.map((edit) => `- ${edit}`).join("\n")}`;
+}
+
+/** Asks Claude for a drawing. Returns whether a new version was added. */
+async function draw(prompt: string): Promise<boolean> {
+  busy.value = "drawing";
+  error.value = "";
+  const result = await window.picasso.generateDiagram(prompt);
+  busy.value = "";
+
+  if (!result.ok) {
+    error.value = result.error;
+    return false;
+  }
+  versions.value.push(result.svg);
+  return true;
+}
+
+/** The text box's button: the first Generate, then Redraw. */
+async function submit(): Promise<void> {
+  if (busy.value) return;
+  const text = input.value.trim();
+
+  if (!hasDrawing.value) {
+    if (!text) return;
+    request.value = text;
+    if (await draw(text)) input.value = "";
+    else request.value = "";
+    return;
+  }
+
+  // An empty box means "try again"; otherwise the change joins the earlier ones.
+  const edits = text ? [...changes.value, text] : changes.value;
+  if (await draw(buildPrompt(request.value, edits))) {
+    changes.value = edits;
+    input.value = "";
+  }
+  focusInput();
+}
+
+/** The green Draw button: copy the latest version as an image, then main hides the panel. */
+async function approve(): Promise<void> {
+  const svg = latest.value;
+  if (!svg || busy.value) return;
+
+  busy.value = "copying";
+  error.value = "";
+  try {
+    const result = await window.picasso.approveDiagram(await svgToPng(svg));
+    if (result.ok) reset();
+    else error.value = result.error;
+  } catch (err) {
+    console.error("[picasso] couldn't turn the diagram into a PNG:", err);
+    error.value = "Couldn't turn the diagram into an image. Try Redraw.";
+  } finally {
+    busy.value = "";
+  }
+}
+
+function startOver(): void {
+  reset();
+  focusInput();
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape") hide();
+  if (event.key === "Enter" && event.ctrlKey) {
+    event.preventDefault(); // otherwise Enter also submits the text box
+    approve();
+  }
 }
 
 let stopListening: (() => void) | undefined;
@@ -41,29 +121,89 @@ onUnmounted(() => {
 
 <template>
   <div class="panel">
-    <header class="titlebar">
-      <span class="title">Picasso</span>
-      <button class="close" title="Hide (Esc)" @click="hide">&times;</button>
-    </header>
+    <div class="body">
+      <header class="titlebar">
+        <span class="brand">Picasso</span>
+        <span class="spacer" />
+        <button
+          v-if="request && !busy"
+          class="start-over"
+          title="Clear this drawing"
+          @click="startOver"
+        >
+          New
+        </button>
+        <button class="esc" title="Hide (Esc)" @click="hide">
+          <kbd>esc</kbd>
+        </button>
+      </header>
 
-    <section class="canvas">
-      <p v-if="lastPrompt">
-        AI drawing isn't wired up yet.<br />
-        You asked for: <strong>{{ lastPrompt }}</strong>
-      </p>
-      <p v-else class="empty">Describe something and it'll be drawn here.</p>
-    </section>
+      <p v-if="request" class="request" :title="request">{{ request }}</p>
 
-    <form class="prompt" @submit.prevent="submit">
-      <input
-        ref="prompt-input"
-        v-model="prompt"
-        placeholder="A tree with its roots labeled…"
-      />
-      <button type="submit" class="btn-primary" :disabled="!prompt.trim()">
-        Draw
+      <section
+        class="preview"
+        :class="{
+          stripes: !latest,
+          drawing: busy === 'drawing',
+        }"
+      >
+        <img
+          v-if="latest"
+          :src="svgDataUrl(latest)"
+          :alt="`Diagram: ${request}`"
+        />
+        <span v-if="hasDrawing" class="badge">v{{ versions.length }}</span>
+
+        <span v-if="busy === 'drawing'" class="label">
+          {{ hasDrawing ? "Redrawing…" : "Drawing…" }}
+        </span>
+        <span v-else-if="!latest" class="label">
+          describe a diagram below
+        </span>
+      </section>
+
+      <!-- Drawing on the preview arrives in M6; the tools are shown but switched off until then. -->
+      <div class="tools">
+        <div class="segmented" title="Drawing on the preview is coming soon">
+          <button class="active" disabled>Pen</button>
+          <button disabled>Arrow</button>
+          <button disabled>Erase</button>
+        </div>
+        <span class="hint">Drawing on the preview is coming soon</span>
+      </div>
+
+      <p v-if="error" class="error">{{ error }}</p>
+
+      <form class="ask" @submit.prevent="submit">
+        <input
+          ref="prompt-input"
+          v-model="input"
+          :placeholder="
+            hasDrawing ? 'What should change?' : 'What should Picasso draw?'
+          "
+          :disabled="busy !== ''"
+        />
+        <button
+          type="submit"
+          class="btn"
+          :disabled="busy !== '' || (!hasDrawing && !input.trim())"
+        >
+          {{ hasDrawing ? "Redraw" : "Generate" }}
+        </button>
+      </form>
+    </div>
+
+    <footer class="footer">
+      <!-- Until auto-paste exists, Draw copies the image and you press Ctrl+V. -->
+      <span class="footer-note">Copies to your clipboard</span>
+      <button
+        class="btn-primary"
+        :disabled="!hasDrawing || busy !== ''"
+        @click="approve"
+      >
+        Draw <span class="shortcut">Ctrl ↵</span>
       </button>
-    </form>
+    </footer>
   </div>
 </template>
 
@@ -72,77 +212,201 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--surface);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
 }
 
 .titlebar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 36px;
-  padding: 0 4px 0 12px;
-  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  height: 26px;
+  font-size: 17px;
   /* Frameless window: this bar is what you grab to drag it around. */
   -webkit-app-region: drag;
   user-select: none;
 }
 
-.title {
-  font-weight: 600;
+.spacer {
+  flex: 1;
 }
 
-.close {
+.start-over,
+.esc {
   -webkit-app-region: no-drag;
-  width: 28px;
-  height: 28px;
+  padding: 0;
   border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 18px;
+  background: none;
   line-height: 1;
 }
 
-.close:hover {
-  background: var(--border);
+.start-over {
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.start-over:hover {
+  background: var(--fill-soft);
   color: var(--text);
 }
 
-.canvas {
+.esc kbd {
+  padding: 3px 7px;
+}
+
+.esc:hover kbd {
+  color: var(--text);
+}
+
+.request {
+  display: -webkit-box;
+  margin: -2px 0 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.preview {
+  position: relative;
   flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 12px;
-  padding: 16px;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  text-align: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface);
 }
 
-.empty {
+.preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 0.2s;
+}
+
+.preview.drawing img {
+  opacity: 0.3;
+}
+
+/* Slide the stripes while Claude is drawing. */
+.preview.drawing.stripes {
+  animation: stripes 0.8s linear infinite;
+}
+
+@keyframes stripes {
+  to {
+    background-position: 28.28px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview.drawing.stripes {
+    animation: none;
+  }
+}
+
+.badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--badge);
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.label {
+  position: absolute;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgb(248 245 240 / 0.9);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tools .segmented {
+  background: var(--fill-soft);
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+.error {
+  margin: -4px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.ask {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 5px 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.ask:focus-within {
+  border-color: #d6cfc6;
+}
+
+.ask input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 15px;
+}
+
+.ask input::placeholder {
   color: var(--text-muted);
 }
 
-.prompt {
+.footer {
   display: flex;
-  gap: 8px;
-  padding: 0 12px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-soft);
 }
 
-.prompt input {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  outline: none;
+.footer-note {
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
-.prompt input:focus {
-  border-color: var(--accent);
+.shortcut {
+  font-size: 12px;
+  opacity: 0.75;
 }
 </style>

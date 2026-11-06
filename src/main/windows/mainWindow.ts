@@ -3,6 +3,9 @@ import { loadPage, preloadPath } from "./loadPage";
 
 let win: BrowserWindow | null = null;
 
+// Height of the window-button strip. MainApp.vue's drag area reads it back with env(titlebar-area-height).
+const TITLE_BAR_HEIGHT = 36;
+
 /** The full app window: home screen, and later your saved drawings and settings. */
 export function createMainWindow(): BrowserWindow {
   win = new BrowserWindow({
@@ -13,6 +16,14 @@ export function createMainWindow(): BrowserWindow {
     title: "Picasso",
     show: false,
     autoHideMenuBar: true,
+    // No Windows title bar, but keep its real minimize/maximize/close buttons (so Snap
+    // Layouts still work), drawn over the top-right corner in Picasso's colors.
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#f8f5f0", // --bg in base.css
+      symbolColor: "#24211c", // --text
+      height: TITLE_BAR_HEIGHT,
+    },
     webPreferences: {
       preload: preloadPath,
       sandbox: true,

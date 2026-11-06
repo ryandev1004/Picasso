@@ -4,6 +4,7 @@ import { displayHotkey, PANEL_HOTKEY } from "./shortcuts";
 import { hidePanel, togglePanel } from "./windows/panelWindow";
 import { clearApiKey, hasApiKey, saveApiKey } from "./settings";
 import { generateDiagram } from "./agent/response";
+import { copyDiagramToClipboard } from "./clipboard";
 
 const MAX_PROMPT_LENGTH = 1000;
 
@@ -40,5 +41,11 @@ export function registerIpcHandlers(): void {
       }
       return generateDiagram(input);
     }
+  });
+  ipcMain.handle(IPC.approveDiagram, async (_event, png: unknown) => {
+    const result = await copyDiagramToClipboard(png);
+    // Hiding the panel hands focus back to the notes app, ready for Ctrl+V.
+    if (result.ok) hidePanel();
+    return result;
   });
 }

@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import type { AppInfo } from "@shared/ipc";
+
+defineProps<{ info: AppInfo | null }>();
+defineEmits<{ back: [] }>();
 
 const hasKey = ref(false);
 const keyInput = ref("");
@@ -32,66 +36,91 @@ async function remove(): Promise<void> {
 
 <template>
   <main class="settings">
-    <h2>Settings</h2>
+    <div class="content">
+      <header class="header">
+        <h1>Settings</h1>
+        <button class="btn" @click="$emit('back')">Back to drawings</button>
+      </header>
 
-    <section class="card">
-      <h3>Claude API key</h3>
-      <p class="muted">
-        Picasso draws using your own Claude API key. It's encrypted with your
-        Windows account and stored only on this PC.
-      </p>
+      <section class="card">
+        <h2>Claude API key</h2>
+        <p class="muted">
+          Picasso draws using your own Claude API key. It's encrypted with your
+          Windows account and stored only on this PC.
+        </p>
 
-      <p class="status" :class="{ saved: hasKey }">
-        {{ hasKey ? "Key saved" : "No key saved yet" }}
-      </p>
+        <p class="status" :class="{ saved: hasKey }">
+          {{ hasKey ? "Key saved" : "No key saved yet" }}
+        </p>
 
-      <form class="key-form" @submit.prevent="save">
-        <input
-          v-model="keyInput"
-          type="password"
-          autocomplete="off"
-          spellcheck="false"
-          :placeholder="hasKey ? 'Paste a new key to replace it' : 'sk-ant-…'"
-        />
-        <button
-          type="submit"
-          class="btn-primary"
-          :disabled="!keyInput.trim() || saving"
-        >
-          Save
-        </button>
-      </form>
-      <p v-if="error" class="error">{{ error }}</p>
+        <form class="key-form" @submit.prevent="save">
+          <input
+            v-model="keyInput"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            :placeholder="hasKey ? 'Paste a new key to replace it' : 'sk-ant-…'"
+          />
+          <button
+            type="submit"
+            class="btn-primary"
+            :disabled="!keyInput.trim() || saving"
+          >
+            Save
+          </button>
+        </form>
+        <p v-if="error" class="error">{{ error }}</p>
 
-      <button v-if="hasKey" class="remove" @click="remove">Remove key</button>
-    </section>
+        <button v-if="hasKey" class="remove" @click="remove">Remove key</button>
+      </section>
+
+      <p v-if="info" class="version">Picasso v{{ info.version }}</p>
+    </div>
   </main>
 </template>
 
 <style scoped>
 .settings {
   flex: 1;
-  width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 24px;
+  min-width: 0;
+  overflow-y: auto;
 }
 
-h2 {
-  margin: 0 0 16px;
-  font-size: 22px;
+.content {
+  max-width: 864px;
+  margin: 0 auto;
+  /* Extra room on top so the header clears the window buttons. */
+  padding: 48px 40px 36px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+h1 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
 .card {
-  padding: 16px;
+  max-width: 520px;
+  padding: 18px 20px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
-h3 {
+h2 {
   margin: 0 0 4px;
   font-size: 15px;
+  font-weight: 600;
 }
 
 .muted {
@@ -103,16 +132,16 @@ h3 {
 .status {
   display: inline-block;
   margin: 0 0 12px;
-  padding: 2px 10px;
-  border: 1px solid var(--border);
+  padding: 1px 10px;
   border-radius: 999px;
+  background: var(--fill);
   color: var(--text-muted);
   font-size: 12px;
 }
 
 .status.saved {
-  border-color: #16a34a;
-  color: #16a34a;
+  background: #e3efe5;
+  color: var(--accent);
 }
 
 .key-form {
@@ -123,10 +152,10 @@ h3 {
 .key-form input {
   flex: 1;
   min-width: 0;
-  padding: 8px 12px;
+  padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--bg);
+  background: var(--surface-soft);
   outline: none;
 }
 
@@ -136,7 +165,7 @@ h3 {
 
 .error {
   margin: 8px 0 0;
-  color: #dc2626;
+  color: var(--danger);
   font-size: 13px;
 }
 
@@ -145,8 +174,14 @@ h3 {
   padding: 0;
   border: none;
   background: none;
-  color: #dc2626;
+  color: var(--danger);
   font-size: 13px;
   text-decoration: underline;
+}
+
+.version {
+  margin: 16px 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
 }
 </style>
