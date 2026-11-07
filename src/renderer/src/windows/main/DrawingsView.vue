@@ -125,7 +125,7 @@ async function remove(): Promise<void> {
       <p v-if="info && !info.hotkeyActive" class="warning">
         Another app is already using {{ info.hotkey }}, so it won't open Picasso
         right now. Change <code>PANEL_HOTKEY</code> in
-        <code>src/main/shortcuts.ts</code>.
+        <code>src/main/system/shortcuts.ts</code>.
       </p>
     </div>
   </main>

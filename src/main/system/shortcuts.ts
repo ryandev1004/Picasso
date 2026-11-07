@@ -1,5 +1,5 @@
 import { globalShortcut } from "electron";
-import { togglePanel } from "./windows/panelWindow";
+import { togglePanel } from "../windows/panelWindow";
 
 /**
  * Opens the panel system-wide, even when Picasso isn't focused.

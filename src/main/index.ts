@@ -1,10 +1,10 @@
 import { app, Tray } from "electron";
 import { createMainWindow, showMainWindow } from "./windows/mainWindow";
 import { createPanelWindow } from "./windows/panelWindow";
-import { registerShortcuts, unregisterShortcuts } from "./shortcuts";
+import { registerShortcuts, unregisterShortcuts } from "./system/shortcuts";
 import { registerIpcHandlers } from "./ipc";
-import { createTray } from "./tray";
-import { wasLaunchedAtLogin } from "./launchAtLogin";
+import { createTray } from "./system/tray";
+import { wasLaunchedAtLogin } from "./system/launchAtLogin";
 
 // Only one Picasso may run at a time, otherwise two copies fight over the global hotkey.
 if (!app.requestSingleInstanceLock()) {

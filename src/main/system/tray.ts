@@ -1,5 +1,5 @@
 import { app, Tray, Menu, nativeImage } from "electron";
-import { showMainWindow } from "./windows/mainWindow";
+import { showMainWindow } from "../windows/mainWindow";
 import {
   canLaunchAtLogin,
   isLaunchAtLoginEnabled,
@@ -7,7 +7,7 @@ import {
 } from "./launchAtLogin";
 // I just had claude generate me a temporary file for this cus I was too lazy to go find one myself.
 // Sue me.
-import trayIconPath from "../../resources/tray.ico?asset";
+import trayIconPath from "../../../resources/tray.ico?asset";
 
 export function createTray(): Tray {
   let appIcon = new Tray(nativeImage.createFromPath(trayIconPath));

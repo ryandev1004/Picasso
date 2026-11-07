@@ -1,6 +1,6 @@
 // Fills Picasso's history with sample drawings dated today, yesterday, last week and earlier,
 // so the main window's list, grouping, search and Thread view have something to show.
-// Writes the same layout as src/main/history.ts (keep the two in sync).
+// Writes the same layout as src/main/storage/history.ts (keep the two in sync).
 //
 //   node scripts/seed-drawings.mjs            add the samples
 //   node scripts/seed-drawings.mjs --remove   delete only the samples

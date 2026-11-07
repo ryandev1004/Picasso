@@ -5,7 +5,7 @@ import {
   VK_SHIFT,
   win32,
   type Hwnd,
-} from "./native/win32";
+} from "../native/win32";
 
 // Where the diagram goes when you press Draw: the window you were typing in when the
 // panel opened. The rest of the app only calls the three functions below, so this

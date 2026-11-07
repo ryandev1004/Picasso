@@ -7,7 +7,7 @@ import {
   SYSTEM_PROMPT,
   redrawPrompt,
 } from "./prompts";
-import { readApiKey } from "../settings";
+import { readApiKey } from "../storage/settings";
 
 /** Draws a new diagram from a description. */
 export function generateDiagram(prompt: string): Promise<AgentResponse> {

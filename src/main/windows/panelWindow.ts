@@ -1,7 +1,7 @@
 import { BrowserWindow, screen } from "electron";
 import { IPC } from "@shared/ipc";
 import { loadPage, preloadPath } from "./loadPage";
-import { getTarget, rememberTarget } from "../pasteTarget";
+import { getTarget, rememberTarget } from "../paste/pasteTarget";
 
 // Sized to the panel design (picassomini).
 const WIDTH = 480;

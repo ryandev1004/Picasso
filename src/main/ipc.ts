@@ -6,12 +6,12 @@ import {
   type DrawResult,
   type RedrawRequest,
 } from "@shared/ipc";
-import { displayHotkey, PANEL_HOTKEY } from "./shortcuts";
+import { displayHotkey, PANEL_HOTKEY } from "./system/shortcuts";
 import { hidePanel, togglePanel } from "./windows/panelWindow";
-import { clearApiKey, hasApiKey, saveApiKey } from "./settings";
+import { clearApiKey, hasApiKey, saveApiKey } from "./storage/settings";
 import { generateDiagram, redrawDiagram } from "./agent/response";
-import { copyDiagramToClipboard } from "./clipboard";
-import { pasteIntoTarget } from "./pasteTarget";
+import { copyDiagramToClipboard } from "./paste/clipboard";
+import { pasteIntoTarget } from "./paste/pasteTarget";
 import {
   addVersion,
   deleteDrawing,
@@ -20,7 +20,7 @@ import {
   listDrawings,
   markInserted,
   type NewVersion,
-} from "./history";
+} from "./storage/history";
 
 const MAX_PROMPT_LENGTH = 1000;
 // A diagram is a few thousand characters, so this leaves lots of room.
