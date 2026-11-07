@@ -27,29 +27,25 @@
 
 A hotkey opens a small panel from anywhere in Windows. It shows which document it'll paste into ("Data Structures & Algorithms Week 1"), and a pencil sketches while Claude draws.
 
-![alt text](drawexamplefinal.gif)
-
-<!-- GIF: from another app, Ctrl+Shift+D → the panel appears with "into …" → type a prompt → Generate → the pencil animation → the diagram appears. -->
+![Picasso opening over Obsidian notes, sketching a linked list, and pasting it at the cursor](docs/gifs/drawexamplefinal.gif)
 
 ### Redraw with a note
 
 Not quite right? Type what should change ("make the Waiting state red") and press **Redraw**. Claude edits the diagram on screen instead of starting over, so the rest of it stays put. Leave the box empty and press Redraw to get a fresh take instead.
 
-![alt text](stacknqueue.gif)
-
-<!-- GIF: a finished diagram → type "make the Waiting state red" → Redraw → only that box changes (v1 → v2). -->
+![Redrawing a stack and queue diagram with the note "change each variable to numbers instead of letters"](docs/gifs/stacknqueue.gif)
 
 ### Draw on the preview
 
 Use **Pen**, **Arrow** and **Erase** to mark up the diagram in red: circle the part you mean, or draw an arrow from one place to another. Then add a note, and Claude gets a picture of your marks along with it.
 
-![alt text](drawing.gif)
+![Circling a node and drawing an arrow on the preview, then Redraw turns that node into a circle](docs/gifs/drawing.gif)
 
 ### History
 
 Every drawing and each of its versions is saved. The main window groups them under Today, Yesterday, Last week and Older, with search. Open one to see its **Thread**: each version, what you asked for, the marks you drew, and a **Copy** button to paste any version again.
 
-![alt text](history.gif)
+![The main window: saved drawings grouped by day, then a drawing's Thread view with Copy](docs/gifs/history.gif)
 
 ## Getting started
 
