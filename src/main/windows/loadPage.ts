@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import { join } from "node:path";
 
-export type Page = "index" | "panel";
+type Page = "index" | "panel";
 
 /** Path to the bundled preload script, shared by every window. */
 export const preloadPath = join(__dirname, "../preload/index.js");

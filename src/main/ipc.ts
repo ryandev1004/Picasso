@@ -11,6 +11,7 @@ import { hidePanel, togglePanel } from "./windows/panelWindow";
 import { clearApiKey, hasApiKey, saveApiKey } from "./settings";
 import { generateDiagram, redrawDiagram } from "./agent/response";
 import { copyDiagramToClipboard } from "./clipboard";
+import { pasteIntoTarget } from "./pasteTarget";
 import {
   addVersion,
   deleteDrawing,
@@ -83,8 +84,10 @@ export function registerIpcHandlers(): void {
       const result = await copyDiagramToClipboard(png);
       if (!result.ok) return result;
 
-      // Hiding the panel hands focus back to the notes app, ready for Ctrl+V.
-      hidePanel();
+      // Switches back to the window the panel was opened from, hides the panel, and pastes
+      // there. When it can't (Notepad, the window closed…), the diagram is still on the
+      // clipboard for Ctrl+V.
+      await pasteIntoTarget(hidePanel);
       if (isDrawingId(drawingId) && Number.isInteger(version)) {
         try {
           await markInserted(drawingId, version as number);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, useTemplateRef } from "vue";
-import type { DrawResult } from "@shared/ipc";
+import type { DrawResult, PasteTarget } from "@shared/ipc";
 import { svgDataUrl, svgToPng } from "@renderer/lib/svgImage";
 
 const input = ref(""); // the text box at the bottom
@@ -12,13 +12,29 @@ const versionNumber = ref(0); // the saved number of the version on screen (the 
 const busy = ref<"" | "drawing" | "copying">("");
 const error = ref("");
 const promptInput = useTemplateRef<HTMLInputElement>("prompt-input");
+// The window the panel was opened from, where Draw pastes (null: opened from Picasso itself).
+const target = ref<PasteTarget | null>(null);
 
 const latest = computed(() => versions.value[versions.value.length - 1]);
 const hasDrawing = computed(() => versions.value.length > 0);
 
+/** The footer's note about what Draw will do. */
+const footerNote = computed(() => {
+  if (!target.value) return "Copies to your clipboard";
+  if (target.value.images === "no") {
+    return `${target.value.app} can't take images. Draw copies instead.`;
+  }
+  return "Inserts at your cursor";
+});
+
 function focusInput(): void {
   promptInput.value?.focus();
   promptInput.value?.select();
+}
+
+function onShown(shownFor: PasteTarget | null): void {
+  target.value = shownFor;
+  focusInput();
 }
 
 function hide(): void {
@@ -95,7 +111,7 @@ async function submit(): Promise<void> {
   focusInput();
 }
 
-/** The green Draw button: copy the latest version as an image, then main hides the panel. */
+/** The green Draw button: main copies the image, hides the panel, and pastes it where you were typing. */
 async function approve(): Promise<void> {
   const svg = latest.value;
   if (!svg || busy.value) return;
@@ -134,7 +150,7 @@ function onKeydown(event: KeyboardEvent): void {
 let stopListening: (() => void) | undefined;
 
 onMounted(() => {
-  stopListening = window.picasso.onPanelShown(focusInput);
+  stopListening = window.picasso.onPanelShown(onShown);
   window.addEventListener("keydown", onKeydown);
 });
 
@@ -149,6 +165,9 @@ onUnmounted(() => {
     <div class="body">
       <header class="titlebar">
         <span class="brand">Picasso</span>
+        <span v-if="target" class="into" :title="target.title">
+          into {{ target.title }}
+        </span>
         <span class="spacer" />
         <button
           v-if="request && !busy"
@@ -219,8 +238,7 @@ onUnmounted(() => {
     </div>
 
     <footer class="footer">
-      <!-- Until auto-paste exists, Draw copies the image and you press Ctrl+V. -->
-      <span class="footer-note">Copies to your clipboard</span>
+      <span class="footer-note">{{ footerNote }}</span>
       <button
         class="btn-primary"
         :disabled="!hasDrawing || busy !== ''"
@@ -258,6 +276,15 @@ onUnmounted(() => {
   /* Frameless window: this bar is what you grab to drag it around. */
   -webkit-app-region: drag;
   user-select: none;
+}
+
+.into {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spacer {

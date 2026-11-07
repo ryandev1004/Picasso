@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from "electron";
 import { IPC } from "@shared/ipc";
 import { loadPage, preloadPath } from "./loadPage";
+import { getTarget, rememberTarget } from "../pasteTarget";
 
 // Sized to the panel design (picassomini).
 const WIDTH = 480;
@@ -39,8 +40,11 @@ export function createPanelWindow(): BrowserWindow {
   return panel;
 }
 
-export function showPanel(): void {
+function showPanel(): void {
   if (!panel) return;
+
+  // Before the panel takes focus, note the window you were typing in, so Draw can paste there.
+  rememberTarget();
 
   // Dock to the right edge of whichever screen the mouse is on.
   const { workArea } = screen.getDisplayNearestPoint(
@@ -53,7 +57,7 @@ export function showPanel(): void {
 
   panel.show();
   panel.focus();
-  panel.webContents.send(IPC.panelShown);
+  panel.webContents.send(IPC.panelShown, getTarget());
 }
 
 export function hidePanel(): void {

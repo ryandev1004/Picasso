@@ -27,6 +27,18 @@ export interface AppInfo {
   hotkeyActive: boolean;
 }
 
+/**
+ * The window the panel was opened from, where Draw pastes. `images` is a judgment from
+ * the program's name: "no" for text-only apps like Notepad, where Draw only copies.
+ */
+export interface PasteTarget {
+  /** The window's title, tidied up, like "Bio 201 – Lecture 7". */
+  title: string;
+  /** The program's name, like "Obsidian" or "Notepad". */
+  app: string;
+  images: "yes" | "no" | "unknown";
+}
+
 /** Result of saving the API key. On failure, `error` is a message to show the user. */
 export type SaveApiKeyResult = { ok: true } | { ok: false; error: string };
 
@@ -103,8 +115,11 @@ export interface PicassoAPI {
   getAppInfo(): Promise<AppInfo>;
   togglePanel(): void;
   hidePanel(): void;
-  /** Runs `callback` every time the panel is shown. Returns an unsubscribe function. */
-  onPanelShown(callback: () => void): () => void;
+  /**
+   * Runs `callback` every time the panel is shown, with the window Draw will paste into
+   * (null when there's none, e.g. opened from Picasso itself). Returns an unsubscribe function.
+   */
+  onPanelShown(callback: (target: PasteTarget | null) => void): () => void;
   /** Whether a Claude API key is saved. There's deliberately no way to read the key itself. */
   hasApiKey(): Promise<boolean>;
   saveApiKey(key: string): Promise<SaveApiKeyResult>;
@@ -117,8 +132,9 @@ export interface PicassoAPI {
   /** Edits the diagram on screen according to `change`, keeping the rest of it the same. */
   redrawDiagram(request: RedrawRequest): Promise<DrawResult>;
   /**
-   * Puts the approved diagram (PNG bytes) on the clipboard and hides the panel. Passing the
-   * drawing and version marks that version as inserted in history.
+   * Puts the approved diagram (PNG bytes) on the clipboard, hides the panel, and pastes it
+   * into the window the panel was opened from when it can. Passing the drawing and version
+   * marks that version as inserted in history.
    */
   approveDiagram(
     png: Uint8Array,

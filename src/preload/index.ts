@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC, type PicassoAPI } from "@shared/ipc";
+import { IPC, type PasteTarget, type PicassoAPI } from "@shared/ipc";
 
 // The only bridge between the Vue windows and Node/Electron. Vue code never touches
 // ipcRenderer directly; it calls `window.picasso.*`, which is exactly this object.
@@ -8,7 +8,8 @@ const api: PicassoAPI = {
   togglePanel: () => ipcRenderer.send(IPC.togglePanel),
   hidePanel: () => ipcRenderer.send(IPC.hidePanel),
   onPanelShown: (callback) => {
-    const listener = (): void => callback();
+    const listener = (_event: unknown, target: PasteTarget | null): void =>
+      callback(target ?? null);
     ipcRenderer.on(IPC.panelShown, listener);
     return () => ipcRenderer.removeListener(IPC.panelShown, listener);
   },
