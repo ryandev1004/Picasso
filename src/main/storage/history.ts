@@ -19,17 +19,24 @@ import type {
 // Every drawing is one folder in userData/drawings, named by its id:
 //   drawing.json   title, description, dates, and the list of versions
 //   v1.svg, v2.svg…  each version's SVG
+//   v3-marks.svg     for an edit made with marks: the version before it with the red marks on top
 // Plain files, so a drawing can be inspected by hand and deleted by deleting its folder.
 // scripts/seed-drawings.mjs writes this same layout; keep the two in sync.
 
-/** drawing.json: a version's details without its SVG, which lives in its own file. */
+/** A version in drawing.json: its details without the SVGs, which live in their own files. */
+type StoredVersion = Omit<DrawingVersion, "svg" | "marksSvg"> & {
+  /** Whether a vN-marks.svg file exists for this version. */
+  marked?: boolean;
+};
+
+/** drawing.json */
 interface StoredDrawing {
   id: string;
   title: string;
   description: string;
   createdAt: string;
   updatedAt: string;
-  versions: Omit<DrawingVersion, "svg">[];
+  versions: StoredVersion[];
 }
 
 /** What a newly drawn version brings with it. */
@@ -40,6 +47,8 @@ export interface NewVersion {
   svg: string;
   kind: VersionKind;
   change?: string;
+  /** For an edit made with marks: the previous version with the red marks drawn on top. */
+  marksSvg?: string;
 }
 
 // Ids come from randomUUID(). Checking the exact shape also keeps an id from the
@@ -85,6 +94,7 @@ export async function addVersion(
     number: version,
     kind: existing ? input.kind : "first",
     ...(input.change ? { change: input.change } : {}),
+    ...(input.marksSvg ? { marked: true } : {}),
     createdAt: now,
     inserted: false,
   });
@@ -97,6 +107,13 @@ export async function addVersion(
       input.svg,
       "utf8",
     );
+    if (input.marksSvg) {
+      await writeFile(
+        join(drawingDir(meta.id), `v${version}-marks.svg`),
+        input.marksSvg,
+        "utf8",
+      );
+    }
     await writeMeta(meta);
   } catch (error) {
     console.error("[picasso] couldn't save the drawing:", error);
@@ -154,9 +171,11 @@ export async function getDrawing(id: string): Promise<Drawing | null> {
   if (!meta) return null;
 
   const versions: DrawingVersion[] = [];
-  for (const entry of meta.versions) {
+  for (const { marked, ...entry } of meta.versions) {
     const svg = await readSvg(id, entry.number);
-    if (svg !== null) versions.push({ ...entry, svg });
+    if (svg === null) continue;
+    const marksSvg = marked ? await readSvg(id, entry.number, "-marks") : null;
+    versions.push({ ...entry, svg, ...(marksSvg ? { marksSvg } : {}) });
   }
   return { ...meta, versions };
 }
@@ -183,9 +202,17 @@ async function writeMeta(meta: StoredDrawing): Promise<void> {
   await rename(`${file}.tmp`, file);
 }
 
-async function readSvg(id: string, version: number): Promise<string | null> {
+/** Reads vN.svg, or vN-marks.svg with `suffix` "-marks". */
+async function readSvg(
+  id: string,
+  version: number,
+  suffix = "",
+): Promise<string | null> {
   try {
-    return await readFile(join(drawingDir(id), `v${version}.svg`), "utf8");
+    return await readFile(
+      join(drawingDir(id), `v${version}${suffix}.svg`),
+      "utf8",
+    );
   } catch {
     return null;
   }

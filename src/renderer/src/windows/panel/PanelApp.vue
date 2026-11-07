@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, useTemplateRef } from "vue";
-import type { DrawResult, PasteTarget } from "@shared/ipc";
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+  useTemplateRef,
+  watch,
+} from "vue";
+import type { DrawResult, PasteTarget, RedrawRequest } from "@shared/ipc";
 import { svgDataUrl, svgToPng } from "@renderer/lib/svgImage";
+import MarkupLayer from "./MarkupLayer.vue";
+import { pictureScale, withMarks, type Mark, type Tool } from "./marks";
 
 const input = ref(""); // the text box at the bottom
 const request = ref(""); // the first description, shown above the preview
@@ -15,8 +24,36 @@ const promptInput = useTemplateRef<HTMLInputElement>("prompt-input");
 // The window the panel was opened from, where Draw pastes (null: opened from Picasso itself).
 const target = ref<PasteTarget | null>(null);
 
+const TOOLS: { tool: Tool; label: string; title: string }[] = [
+  { tool: "pen", label: "Pen", title: "Draw freehand to circle or underline" },
+  { tool: "arrow", label: "Arrow", title: "Drag to draw an arrow" },
+  { tool: "erase", label: "Erase", title: "Wipe over a mark to remove it" },
+];
+const tool = ref<Tool>("pen");
+const marks = ref<Mark[]>([]); // red marks drawn on the version on screen
+
 const latest = computed(() => versions.value[versions.value.length - 1]);
 const hasDrawing = computed(() => versions.value.length > 0);
+
+// Marks belong to the version they were drawn on, so a new version (or New) clears them.
+watch(latest, () => {
+  marks.value = [];
+});
+
+/** Marks only point at things; Redraw needs a note saying what to do with them. */
+const needsNote = computed(
+  () => marks.value.length > 0 && input.value.trim() === "",
+);
+
+/** The grey hint next to Pen / Arrow / Erase. */
+const toolHint = computed(() => {
+  const count = marks.value.length;
+  if (count === 0) return "Draw on the preview to point at changes";
+  const what = count === 1 ? "1 mark" : `${count} marks`;
+  return needsNote.value
+    ? `${what} · now type what should change`
+    : `${what} · Redraw sends them with your change`;
+});
 
 /** The footer's note about what Draw will do. */
 const footerNote = computed(() => {
@@ -62,7 +99,13 @@ function buildPrompt(text: string, edits: string[]): string {
 async function draw(send: () => Promise<DrawResult>): Promise<boolean> {
   busy.value = "drawing";
   error.value = "";
-  const result = await send();
+  let result: DrawResult;
+  try {
+    result = await send();
+  } catch (err) {
+    console.error("[picasso] couldn't send the request:", err);
+    result = { ok: false, error: "Something went wrong. Try again." };
+  }
   busy.value = "";
 
   if (!result.ok) {
@@ -91,19 +134,37 @@ async function submit(): Promise<void> {
     return;
   }
 
+  if (needsNote.value) {
+    focusInput(); // marks are waiting for a note (the hint says so)
+    return;
+  }
+
   if (!text) {
     // An empty box means "try again": a fresh drawing of the request and its changes so far.
     const prompt = buildPrompt(request.value, changes.value);
     await draw(() => window.picasso.generateDiagram(prompt, drawingId.value));
   } else {
     // A change edits the diagram on screen, so only what was asked for moves.
-    const current = {
-      description: request.value,
-      svg: latest.value,
-      change: text,
-      drawingId: drawingId.value,
+    const svg = latest.value;
+    const drawn = marks.value;
+    const send = async (): Promise<DrawResult> => {
+      const current: RedrawRequest = {
+        description: request.value,
+        svg,
+        change: text,
+        drawingId: drawingId.value,
+      };
+      if (drawn.length > 0) {
+        // Claude sees a picture of the diagram with the marks on top.
+        const marked = withMarks(svg, drawn);
+        current.marks = {
+          svg: marked,
+          png: await svgToPng(marked, pictureScale(marked)),
+        };
+      }
+      return window.picasso.redrawDiagram(current);
     };
-    if (await draw(() => window.picasso.redrawDiagram(current))) {
+    if (await draw(send)) {
       changes.value = [...changes.value, text];
       input.value = "";
     }
@@ -196,6 +257,13 @@ onUnmounted(() => {
           :src="svgDataUrl(latest)"
           :alt="`Diagram: ${request}`"
         />
+        <MarkupLayer
+          v-if="latest"
+          v-model="marks"
+          :svg="latest"
+          :tool="tool"
+          :disabled="busy !== ''"
+        />
         <span v-if="hasDrawing" class="badge">v{{ versionNumber }}</span>
 
         <span v-if="busy === 'drawing'" class="label">
@@ -206,14 +274,20 @@ onUnmounted(() => {
         </span>
       </section>
 
-      <!-- Drawing on the preview arrives in M6; the tools are shown but switched off until then. -->
       <div class="tools">
-        <div class="segmented" title="Drawing on the preview is coming soon">
-          <button class="active" disabled>Pen</button>
-          <button disabled>Arrow</button>
-          <button disabled>Erase</button>
+        <div class="segmented">
+          <button
+            v-for="option in TOOLS"
+            :key="option.tool"
+            :class="{ active: tool === option.tool }"
+            :disabled="!hasDrawing || busy !== ''"
+            :title="option.title"
+            @click="tool = option.tool"
+          >
+            {{ option.label }}
+          </button>
         </div>
-        <span class="hint">Drawing on the preview is coming soon</span>
+        <span class="hint" :class="{ waiting: needsNote }">{{ toolHint }}</span>
       </div>
 
       <p v-if="error" class="error">{{ error }}</p>
@@ -230,7 +304,7 @@ onUnmounted(() => {
         <button
           type="submit"
           class="btn"
-          :disabled="busy !== '' || (!hasDrawing && !input.trim())"
+          :disabled="busy !== '' || (!hasDrawing && !input.trim()) || needsNote"
         >
           {{ hasDrawing ? "Redraw" : "Generate" }}
         </button>
@@ -407,6 +481,10 @@ onUnmounted(() => {
   color: var(--text-muted);
   font-size: 13px;
   text-align: right;
+}
+
+.hint.waiting {
+  color: #c2410c;
 }
 
 .error {

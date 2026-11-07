@@ -25,6 +25,21 @@ import {
 const MAX_PROMPT_LENGTH = 1000;
 // A diagram is a few thousand characters, so this leaves lots of room.
 const MAX_SVG_LENGTH = 100_000;
+// The diagram plus hand-drawn marks (long pen strokes add path data).
+const MAX_MARKED_SVG_LENGTH = 300_000;
+// A ~1000px picture of a diagram is well under 1 MB.
+const MAX_MARKS_PNG_BYTES = 8 * 1024 * 1024;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/** Whether `value` is PNG bytes of a sensible size (checked by the PNG file signature). */
+function isPng(value: unknown): value is Uint8Array {
+  return (
+    value instanceof Uint8Array &&
+    value.byteLength > PNG_SIGNATURE.length &&
+    value.byteLength <= MAX_MARKS_PNG_BYTES &&
+    PNG_SIGNATURE.every((byte, i) => value[i] === byte)
+  );
+}
 
 /**
  * Everything the Vue windows can ask the main process to do.
@@ -76,6 +91,7 @@ export function registerIpcHandlers(): void {
       description: checked.description,
       kind: "edit",
       change: checked.change,
+      marksSvg: checked.marks?.svg,
     });
   });
   ipcMain.handle(
@@ -140,7 +156,7 @@ function checkRedraw(request: unknown): RedrawRequest | string {
   if (typeof request !== "object" || request === null) {
     return "Invalid redraw request";
   }
-  const { description, svg, change, drawingId } = request as Record<
+  const { description, svg, change, drawingId, marks } = request as Record<
     string,
     unknown
   >;
@@ -165,7 +181,23 @@ function checkRedraw(request: unknown): RedrawRequest | string {
     return "The current diagram couldn't be sent. Try a fresh drawing.";
   }
 
+  // Marks are optional: the diagram with marks on top as SVG (for history) and as a PNG (for Claude).
+  let checkedMarks: RedrawRequest["marks"];
+  if (marks !== undefined && marks !== null) {
+    const { svg: marksSvg, png } = marks as Record<string, unknown>;
+    if (
+      typeof marksSvg !== "string" ||
+      !marksSvg.trimStart().startsWith("<svg") ||
+      marksSvg.length > MAX_MARKED_SVG_LENGTH ||
+      !isPng(png)
+    ) {
+      return "Your marks couldn't be sent. Try drawing them again.";
+    }
+    checkedMarks = { svg: marksSvg, png };
+  }
+
   return {
+    marks: checkedMarks,
     description: cleanDescription,
     svg,
     change: cleanChange,

@@ -55,6 +55,14 @@ async function copy(version: DrawingVersion): Promise<void> {
           {{ copied === version.number ? "Copied" : "Copy" }}
         </button>
       </div>
+      <!-- An edit made by drawing on the diagram: show what was marked, then the result. -->
+      <figure v-if="version.marksSvg" class="marks">
+        <figcaption>Your marks on v{{ version.number - 1 }}</figcaption>
+        <img
+          :src="svgDataUrl(version.marksSvg)"
+          :alt="`Your marks on version ${version.number - 1}`"
+        />
+      </figure>
       <div class="preview">
         <img
           :src="svgDataUrl(version.svg)"
@@ -70,6 +78,32 @@ async function copy(version: DrawingVersion): Promise<void> {
   margin: 0 0 16px;
   color: var(--danger);
   font-size: 13px;
+}
+
+.marks {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.marks figcaption {
+  flex-shrink: 0;
+  width: 110px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.marks img {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 160px;
+  object-fit: contain;
 }
 
 .thread {

@@ -14,13 +14,30 @@ export function generateDiagram(prompt: string): Promise<AgentResponse> {
   return requestDiagram(prompt);
 }
 
-/** Edits the diagram on screen instead of drawing a new one, so the rest of it stays put. */
+/**
+ * Edits the diagram on screen instead of drawing a new one, so the rest of it stays put.
+ * With marks, Claude also gets a picture of the diagram with the student's marks on top.
+ */
 export function redrawDiagram(request: RedrawRequest): Promise<AgentResponse> {
-  return requestDiagram(redrawPrompt(request));
+  const text = redrawPrompt(request);
+  if (!request.marks) return requestDiagram(text);
+  return requestDiagram([
+    {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: "image/png",
+        data: Buffer.from(request.marks.png).toString("base64"),
+      },
+    },
+    { type: "text", text },
+  ]);
 }
 
 /** Sends one message to Claude and pulls the SVG out of the reply. */
-async function requestDiagram(prompt: string): Promise<AgentResponse> {
+async function requestDiagram(
+  prompt: Anthropic.MessageParam["content"],
+): Promise<AgentResponse> {
   // Read the key on every call, so a key saved or changed in Settings is used right away.
   const apiKey = await readApiKey();
   if (!apiKey)

@@ -61,6 +61,11 @@ export interface RedrawRequest {
   change: string;
   /** The drawing the new version is saved under. */
   drawingId?: string;
+  /**
+   * Red marks the student drew on the diagram: `svg` is the diagram with the marks on top
+   * (kept in history), and `png` is the same as a picture, which is what Claude sees.
+   */
+  marks?: { svg: string; png: Uint8Array };
 }
 
 /** Result of approving a diagram. On failure, `error` is a message to show the user. */
@@ -81,6 +86,8 @@ export interface DrawingVersion {
   /** Whether this version was inserted into notes with the Draw button. */
   inserted: boolean;
   svg: string;
+  /** For an edit made with marks: the previous version with the student's red marks on top. */
+  marksSvg?: string;
 }
 
 /** A drawing as the sidebar list and grid need it. */

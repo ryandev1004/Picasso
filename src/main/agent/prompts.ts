@@ -25,21 +25,27 @@ Follow these rules:
 - Use only shapes, text and paths. Don't use <script>, event handlers like onclick, <foreignObject>, <image>, links or external fonts.
 - Keep it simple: clear labels, space between elements, and at most 3 colors.
 
-When the student asks to change a diagram, you'll get the current SVG along with their change. Edit that SVG instead of starting over: keep its layout, ids, colors and everything the change doesn't mention the same, so the diagram they're looking at doesn't jump around. Still reply with the complete SVG.`;
+When the student asks to change a diagram, you'll get the current SVG along with their change. Edit that SVG instead of starting over: keep its layout, ids, colors and everything the change doesn't mention the same, so the diagram they're looking at doesn't jump around. Still reply with the complete SVG.
+
+The student can also draw on the diagram to point at what they mean. Then you'll also get a picture of the current diagram with their hand-drawn marks on top in bright red: a freehand line, circle or underline points at the parts their change is about, and an arrow points from one place to another, for example to move or connect something. Read the marks together with their written change. The marks only explain the change, so never draw them into your SVG: apply the change to the clean SVG you were given.`;
 
 /** The message Redraw sends: the first description, the diagram on screen, and the change. */
 export function redrawPrompt({
   description,
   svg,
   change,
+  marks,
 }: RedrawRequest): string {
+  const marked = marks
+    ? "\n\nThe attached picture is the current diagram with the student's red marks drawn on top."
+    : "";
   return `<original_request>${description}</original_request>
 
 <current_diagram>
 ${svg}
 </current_diagram>
 
-<change>${change}</change>`;
+<change>${change}</change>${marked}`;
 }
 
 // TODO: Add more detailed instructions and references for specific diagrams and graphs.
