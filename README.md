@@ -9,10 +9,6 @@
   Press a hotkey, describe a diagram, and Picasso draws it with Claude and pastes it right where you're typing.
 </p>
 
-[INSERT HERE]
-
-<!-- GIF (hero): typing notes in Google Docs or Obsidian → Ctrl+Shift+D → type "the five-state process model" → Generate → Draw → the diagram lands at the cursor. Keep it under ~15 seconds. -->
-
 ## How it works
 
 1. **You're taking notes.** Put your cursor where the diagram should go.
