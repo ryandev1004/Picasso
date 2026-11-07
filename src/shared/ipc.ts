@@ -39,20 +39,22 @@ export interface PasteTarget {
   images: "yes" | "no" | "unknown";
 }
 
-/** Result of saving the API key. On failure, `error` is a message to show the user. */
-export type SaveApiKeyResult = { ok: true } | { ok: false; error: string };
-
-/** Result of generating a diagram. On success, `svg` is the diagram's markup; on failure, `error` is a message to show the user. */
-export type AgentResponse =
-  { ok: true; svg: string } | { ok: false; error: string };
+/**
+ * Every "did it work?" answer: `{ ok: true, ...extra }` on success, or `{ ok: false, error }`
+ * with a message to show the user.
+ */
+export type Result<T extends object = object> =
+  ({ ok: true } & T) | { ok: false; error: string };
 
 /**
  * What the panel gets back from a Generate or Redraw. On success the new version is
  * already saved to history: `drawingId` is the drawing it belongs to, `version` its number (v1, v2…).
  */
-export type DrawResult =
-  | { ok: true; svg: string; drawingId: string; version: number }
-  | { ok: false; error: string };
+export type DrawResult = Result<{
+  svg: string;
+  drawingId: string;
+  version: number;
+}>;
 
 /** What Redraw sends: the first description, the diagram on screen, and what to change about it. */
 export interface RedrawRequest {
@@ -67,9 +69,6 @@ export interface RedrawRequest {
    */
   marks?: { svg: string; png: Uint8Array };
 }
-
-/** Result of approving a diagram. On failure, `error` is a message to show the user. */
-export type ApproveDiagramResult = { ok: true } | { ok: false; error: string };
 
 /** How a version came about: the first drawing, an edit from "What should change?", or an empty Redraw. */
 export type VersionKind = "first" | "edit" | "retry";
@@ -90,8 +89,8 @@ export interface DrawingVersion {
   marksSvg?: string;
 }
 
-/** A drawing as the sidebar list and grid need it. */
-export interface DrawingSummary {
+/** What every drawing has, whether it's in the list or opened. */
+export interface DrawingInfo {
   id: string;
   /** Short name Claude gives the diagram, like "Krebs cycle, simplified". */
   title: string;
@@ -100,6 +99,10 @@ export interface DrawingSummary {
   createdAt: string;
   /** When the newest version was drawn. Lists are sorted by this, newest first. */
   updatedAt: string;
+}
+
+/** A drawing as the sidebar list and grid need it. */
+export interface DrawingSummary extends DrawingInfo {
   versionCount: number;
   /** The newest version's SVG, for the thumbnail. */
   latestSvg: string;
@@ -108,12 +111,7 @@ export interface DrawingSummary {
 }
 
 /** A whole drawing with every version, oldest first, for the opened view and Thread. */
-export interface Drawing {
-  id: string;
-  title: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
+export interface Drawing extends DrawingInfo {
   versions: DrawingVersion[];
 }
 
@@ -129,7 +127,7 @@ export interface PicassoAPI {
   onPanelShown(callback: (target: PasteTarget | null) => void): () => void;
   /** Whether a Claude API key is saved. There's deliberately no way to read the key itself. */
   hasApiKey(): Promise<boolean>;
-  saveApiKey(key: string): Promise<SaveApiKeyResult>;
+  saveApiKey(key: string): Promise<Result>;
   clearApiKey(): Promise<void>;
   /**
    * Draws a diagram from the prompt and saves it. Without `drawingId` it starts a new drawing;
@@ -147,9 +145,9 @@ export interface PicassoAPI {
     png: Uint8Array,
     drawingId?: string,
     version?: number,
-  ): Promise<ApproveDiagramResult>;
+  ): Promise<Result>;
   /** Puts PNG bytes on the clipboard, like approveDiagram but without touching the panel. */
-  copyImage(png: Uint8Array): Promise<ApproveDiagramResult>;
+  copyImage(png: Uint8Array): Promise<Result>;
   /** Every saved drawing, newest first. */
   listDrawings(): Promise<DrawingSummary[]>;
   /** One drawing with all of its versions, or null if it doesn't exist. */

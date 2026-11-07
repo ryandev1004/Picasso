@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { Drawing, DrawingVersion } from "@shared/ipc";
 import { formatWhen } from "@renderer/lib/dates";
 import { svgDataUrl, svgToPng } from "@renderer/lib/svgImage";
@@ -8,6 +8,16 @@ const props = defineProps<{ drawing: Drawing }>();
 
 const copied = ref<number | null>(null); // which version's Copy button says "Copied"
 const error = ref("");
+
+// Each version's pictures, encoded once per drawing rather than on every re-render
+// (like a Copy button changing to "Copied").
+const entries = computed(() =>
+  props.drawing.versions.map((version) => ({
+    version,
+    src: svgDataUrl(version.svg),
+    marksSrc: version.marksSvg ? svgDataUrl(version.marksSvg) : undefined,
+  })),
+);
 
 /** What led to each version: the first description, the change asked for, or a retry. */
 function describe(version: DrawingVersion): string {
@@ -37,14 +47,14 @@ async function copy(version: DrawingVersion): Promise<void> {
 </script>
 
 <template>
-  <p v-if="error" class="error">{{ error }}</p>
+  <p v-if="error" class="error-text copy-error">{{ error }}</p>
 
   <!-- Oldest first, so it reads like the conversation that made the drawing. -->
   <ol class="thread">
-    <li v-for="version in drawing.versions" :key="version.number">
+    <li v-for="{ version, src, marksSrc } in entries" :key="version.number">
       <div class="meta">
         <span class="badge">v{{ version.number }}</span>
-        <span class="what">{{ describe(version) }}</span>
+        <span class="what truncate">{{ describe(version) }}</span>
         <span class="when">{{ formatWhen(version.createdAt) }}</span>
         <span v-if="version.inserted" class="inserted">Inserted</span>
         <button
@@ -56,28 +66,23 @@ async function copy(version: DrawingVersion): Promise<void> {
         </button>
       </div>
       <!-- An edit made by drawing on the diagram: show what was marked, then the result. -->
-      <figure v-if="version.marksSvg" class="marks">
+      <figure v-if="marksSrc" class="marks">
         <figcaption>Your marks on v{{ version.number - 1 }}</figcaption>
         <img
-          :src="svgDataUrl(version.marksSvg)"
+          :src="marksSrc"
           :alt="`Your marks on version ${version.number - 1}`"
         />
       </figure>
       <div class="preview">
-        <img
-          :src="svgDataUrl(version.svg)"
-          :alt="`${drawing.title}, version ${version.number}`"
-        />
+        <img :src="src" :alt="`${drawing.title}, version ${version.number}`" />
       </div>
     </li>
   </ol>
 </template>
 
 <style scoped>
-.error {
+.copy-error {
   margin: 0 0 16px;
-  color: var(--danger);
-  font-size: 13px;
 }
 
 .marks {
@@ -122,39 +127,31 @@ async function copy(version: DrawingVersion): Promise<void> {
   margin-bottom: 10px;
 }
 
-.badge {
+.badge,
+.when,
+.inserted,
+.copy {
   flex-shrink: 0;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--badge);
-  color: #ffffff;
-  font-size: 12px;
 }
 
 .what {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .when {
-  flex-shrink: 0;
   color: var(--text-faint);
   font-size: 13px;
 }
 
 .inserted {
-  flex-shrink: 0;
   padding: 0 8px;
   border-radius: 999px;
-  background: #e3efe5;
+  background: var(--accent-soft);
   color: var(--accent);
   font-size: 12px;
 }
 
 .copy {
-  flex-shrink: 0;
   margin-left: auto;
   padding: 3px 12px;
   font-size: 13px;

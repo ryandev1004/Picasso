@@ -2,13 +2,24 @@
 
 const DAY = 24 * 60 * 60 * 1000;
 
-export type DateGroup = "Today" | "Yesterday" | "Last week" | "Older";
-export const DATE_GROUPS: DateGroup[] = [
+export const DATE_GROUPS = [
   "Today",
   "Yesterday",
   "Last week",
   "Older",
-];
+] as const;
+export type DateGroup = (typeof DATE_GROUPS)[number];
+
+// Made once: building a date formatter is slow, and the lists format a date for every row.
+const timeFormat = new Intl.DateTimeFormat([], {
+  hour: "numeric",
+  minute: "2-digit",
+});
+const dateFormat = new Intl.DateTimeFormat([], {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
 
 function startOfDay(date: Date): number {
   return new Date(
@@ -34,30 +45,18 @@ export function groupFor(iso: string, now = new Date()): DateGroup {
 
 /** "10:42 AM" */
 export function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return timeFormat.format(new Date(iso));
 }
 
 /** "Today", "Yesterday", or a short date like "Mon, Nov 2". */
 export function formatDay(iso: string, now = new Date()): string {
-  const days = daysAgo(iso, now);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return new Date(iso).toLocaleDateString([], {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  const group = groupFor(iso, now);
+  return group === "Today" || group === "Yesterday"
+    ? group
+    : dateFormat.format(new Date(iso));
 }
 
 /** "Today, 10:42 AM", like the date chip in the design. */
 export function formatWhen(iso: string, now = new Date()): string {
   return `${formatDay(iso, now)}, ${formatTime(iso)}`;
-}
-
-/** "1 version", "3 versions" */
-export function versionLabel(count: number): string {
-  return count === 1 ? "1 version" : `${count} versions`;
 }

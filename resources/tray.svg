@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Picasso's tray icon: the brand's green dot with a pencil. Kept simple so it reads at 16px. -->
+  <!-- Edit this, then run `npm run icons` to rebuild tray.ico. -->
+  <circle cx="128" cy="128" r="124" fill="#529961"/>
+
+  <!-- The pencil: tip at (80, 176), body toward the top right. -->
+  <g transform="translate(80 176) rotate(-45)">
+    <path d="M0 0 L42 -24 L42 24 Z" fill="#fdfaf6"/>
+    <path d="M0 0 L15 -8.5 L15 8.5 Z" fill="#24211c"/>
+    <rect x="50" y="-24" width="86" height="48" rx="4" fill="#fdfaf6"/>
+  </g>
+</svg>

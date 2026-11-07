@@ -1,6 +1,7 @@
 // The red marks you draw on the panel's preview: what a mark is, the shapes that draw it,
 // and the marked-up diagram that Redraw sends to Claude (and history keeps).
 // Marks use the diagram's own coordinates, so they line up at any preview size.
+import { svgToPng } from "@renderer/lib/svgImage";
 
 export interface Point {
   x: number;
@@ -142,11 +143,20 @@ export function withMarks(svg: string, marks: Mark[]): string {
   return `${svg.slice(0, end)}<g id="picasso-student-marks">${paths}</g>${svg.slice(end)}`;
 }
 
+/** The diagram with marks on top, as SVG (kept in history) and as a PNG picture (sent to Claude). */
+export async function markedPicture(
+  svg: string,
+  marks: Mark[],
+): Promise<{ svg: string; png: Uint8Array }> {
+  const marked = withMarks(svg, marks);
+  return { svg: marked, png: await svgToPng(marked, pictureScale(marked)) };
+}
+
 /**
  * How much to enlarge the marked-up picture for Claude: about 1000px on its long side,
  * enough to see the marks clearly without spending extra tokens on a huge image.
  */
-export function pictureScale(svg: string): number {
+function pictureScale(svg: string): number {
   const box = viewBoxOf(svg);
   return Math.min(2, Math.max(1, 1000 / Math.max(box.width, box.height)));
 }

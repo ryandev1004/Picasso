@@ -1,8 +1,9 @@
 // Claude constants and system prompt for the agent model.
+// TODO: Add more detailed instructions and references for specific diagrams and graphs.
 import type { RedrawRequest } from "@shared/ipc";
 
 export const MODEL = "claude-sonnet-5-5";
-export const EFFORT = "medium"; // compare against "medium" in step 7
+export const EFFORT = "medium"; // how much Claude thinks before drawing; "low" is faster
 export const MAX_TOKENS = 16000; // generous, so the SVG never gets cut off
 
 export const SYSTEM_PROMPT = `You draw clear, simple diagrams for a student taking notes during a lecture. The diagram will be pasted into their notes, so it must be easy to read at a glance.
@@ -47,5 +48,3 @@ ${svg}
 
 <change>${change}</change>${marked}`;
 }
-
-// TODO: Add more detailed instructions and references for specific diagrams and graphs.

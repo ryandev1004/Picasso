@@ -10,6 +10,7 @@
   --fill-strong: #e8e1d9; /* selected list item */
   --fill-soft: #f2efea; /* panel tool switcher */
   --border: #ebe7e2;
+  --border-strong: #d6cfc6; /* focused inputs, hovered cards */
   --stripe-a: #ece5dd;
   --stripe-b: #f3efe9;
 
@@ -20,9 +21,12 @@
 
   --accent: #3d834f; /* Draw button */
   --accent-dot: #529961; /* the logo dot */
+  --accent-soft: #e3efe5; /* "Key saved", "Inserted" */
   --accent-text: #ffffff;
   --danger: #b4432f;
+  --danger-soft: #f6e3df; /* "Click again to delete" */
   --warning: #a8641c;
+  --hint: #c2410c; /* the panel's "now type what should change" */
 
   --radius: 8px;
   --radius-lg: 12px;
@@ -178,6 +182,50 @@ button:disabled {
 
 .segmented button:disabled {
   color: var(--text-faint);
+}
+
+/* Dark pill with a version number, like "v2". */
+.badge {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--badge);
+  color: #ffffff;
+  font-size: 12px;
+}
+
+/* One line of text that ends in "…" when it doesn't fit. */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A short error message. */
+.error-text {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* A main-window page (All drawings, Settings): scrolls on its own, content centered. */
+.page {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.page-content {
+  max-width: 864px;
+  margin: 0 auto;
+  /* Extra room on top so the title clears the window buttons. */
+  padding: 48px 40px 36px;
+}
+
+.page-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
 /* The diagonal-stripe placeholder used for empty drawing areas. */

@@ -29,6 +29,8 @@ const VK_V = 0x56;
 const INPUT_KEYBOARD = 1;
 const KEYEVENTF_KEYUP = 0x0002;
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+// Room for window titles and program paths, in characters.
+const MAX_CHARS = 512;
 
 let cached: Win32 | null | undefined; // undefined = not loaded yet
 
@@ -126,9 +128,8 @@ function load(): Win32 {
     getForegroundWindow: () => GetForegroundWindow() as Hwnd | null,
 
     getWindowTitle(hwnd) {
-      // The size passed is in characters; each UTF-16 character is 2 bytes.
-      const buffer = Buffer.alloc(1024);
-      const length = GetWindowTextW(hwnd, buffer, 512) as number;
+      const buffer = Buffer.alloc(MAX_CHARS * 2); // UTF-16: 2 bytes per character
+      const length = GetWindowTextW(hwnd, buffer, MAX_CHARS) as number;
       return buffer.toString("utf16le", 0, length * 2);
     },
 
@@ -147,8 +148,8 @@ function load(): Win32 {
       ) as bigint | null;
       if (!handle) return null; // e.g. a program running as administrator
       try {
-        const buffer = Buffer.alloc(1024);
-        const size = [512]; // in: room in characters; out: characters written
+        const buffer = Buffer.alloc(MAX_CHARS * 2);
+        const size = [MAX_CHARS]; // in: room in characters; out: characters written
         if (!QueryFullProcessImageNameW(handle, 0, buffer, size)) return null;
         const path = buffer.toString("utf16le", 0, size[0] * 2);
         return path.split("\\").pop()?.toLowerCase() ?? null;
@@ -171,7 +172,8 @@ function load(): Win32 {
         key(VK_V, true),
         key(VK_CONTROL, true),
       ];
-      return SendInput(events.length, events, koffi.sizeof(INPUT)) === 4;
+      const sent = SendInput(events.length, events, koffi.sizeof(INPUT));
+      return sent === events.length;
     },
   };
 }

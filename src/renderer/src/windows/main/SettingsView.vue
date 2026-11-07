@@ -35,10 +35,10 @@ async function remove(): Promise<void> {
 </script>
 
 <template>
-  <main class="settings">
-    <div class="content">
+  <main class="page">
+    <div class="page-content">
       <header class="header">
-        <h1>Settings</h1>
+        <h1 class="page-title">Settings</h1>
         <button class="btn" @click="$emit('back')">Back to drawings</button>
       </header>
 
@@ -49,7 +49,7 @@ async function remove(): Promise<void> {
           Windows account and stored only on this PC.
         </p>
 
-        <p class="status" :class="{ saved: hasKey }">
+        <p class="chip status" :class="{ saved: hasKey }">
           {{ hasKey ? "Key saved" : "No key saved yet" }}
         </p>
 
@@ -69,7 +69,7 @@ async function remove(): Promise<void> {
             Save
           </button>
         </form>
-        <p v-if="error" class="error">{{ error }}</p>
+        <p v-if="error" class="error-text key-error">{{ error }}</p>
 
         <button v-if="hasKey" class="remove" @click="remove">Remove key</button>
       </section>
@@ -80,33 +80,12 @@ async function remove(): Promise<void> {
 </template>
 
 <style scoped>
-.settings {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
-}
-
-.content {
-  max-width: 864px;
-  margin: 0 auto;
-  /* Extra room on top so the header clears the window buttons. */
-  padding: 48px 40px 36px;
-}
-
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 32px;
-}
-
-h1 {
-  margin: 0;
-  font-family: var(--font-serif);
-  font-size: 36px;
-  font-weight: 400;
-  line-height: 1.2;
 }
 
 .card {
@@ -130,17 +109,12 @@ h2 {
 }
 
 .status {
-  display: inline-block;
   margin: 0 0 12px;
-  padding: 1px 10px;
-  border-radius: 999px;
-  background: var(--fill);
-  color: var(--text-muted);
   font-size: 12px;
 }
 
 .status.saved {
-  background: #e3efe5;
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
@@ -163,10 +137,8 @@ h2 {
   border-color: var(--accent);
 }
 
-.error {
+.key-error {
   margin: 8px 0 0;
-  color: var(--danger);
-  font-size: 13px;
 }
 
 .remove {

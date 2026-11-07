@@ -18,7 +18,8 @@ const dir =
     ? args[dirFlag + 1]
     : join(process.env.APPDATA ?? "", "picasso", "drawings");
 
-const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const now = Date.now();
 const startOfToday = new Date().setHours(0, 0, 0, 0);
@@ -28,7 +29,7 @@ const SAMPLES = [
     title: "Krebs cycle, simplified",
     description:
       "Draw the Krebs cycle as a simple loop with the 8 steps labeled.",
-    at: now - 10 * 60 * 1000,
+    at: now - 10 * MINUTE,
     color: ["#e3eefa", "#1f5fa8"],
     versions: [
       { kind: "first" },
@@ -39,7 +40,7 @@ const SAMPLES = [
   {
     title: "Supply & demand shift",
     description: "Supply and demand curves with demand shifting right.",
-    at: now - 40 * 60 * 1000,
+    at: now - 40 * MINUTE,
     color: ["#fbe8cf", "#a8641c"],
     versions: [{ kind: "first", inserted: true }],
   },
@@ -110,9 +111,9 @@ async function addSamples() {
     const versions = sample.versions.map((v, i) => ({
       number: i + 1,
       kind: v.kind,
-      ...(v.change ? { change: v.change } : {}),
+      change: v.change, // left out of the JSON when undefined
       createdAt: new Date(
-        sample.at - (sample.versions.length - 1 - i) * 3 * 60 * 1000,
+        sample.at - (sample.versions.length - 1 - i) * 3 * MINUTE,
       ).toISOString(),
       inserted: v.inserted ?? false,
     }));

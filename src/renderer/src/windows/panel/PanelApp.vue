@@ -7,17 +7,24 @@ import {
   useTemplateRef,
   watch,
 } from "vue";
-import type { DrawResult, PasteTarget, RedrawRequest } from "@shared/ipc";
+import type { DrawResult, PasteTarget } from "@shared/ipc";
 import { svgDataUrl, svgToPng } from "@renderer/lib/svgImage";
+import { plural } from "@renderer/lib/format";
 import MarkupLayer from "./MarkupLayer.vue";
-import { pictureScale, withMarks, type Mark, type Tool } from "./marks";
+import PencilLoader from "./PencilLoader.vue";
+import { markedPicture, type Mark, type Tool } from "./marks";
+
+/** The version on screen, and where main saved it in history. */
+interface Shown {
+  svg: string;
+  drawingId: string;
+  version: number; // the "v" badge
+}
 
 const input = ref(""); // the text box at the bottom
 const request = ref(""); // the first description, shown above the preview
 const changes = ref<string[]>([]); // every "What should change?" that has been drawn
-const versions = ref<string[]>([]); // every SVG drawn for this request; the last one is shown
-const drawingId = ref<string>(); // where main saves this drawing's versions in history
-const versionNumber = ref(0); // the saved number of the version on screen (the "v" badge)
+const current = ref<Shown | null>(null); // null until the first drawing arrives
 const busy = ref<"" | "drawing" | "copying">("");
 const error = ref("");
 const promptInput = useTemplateRef<HTMLInputElement>("prompt-input");
@@ -32,24 +39,39 @@ const TOOLS: { tool: Tool; label: string; title: string }[] = [
 const tool = ref<Tool>("pen");
 const marks = ref<Mark[]>([]); // red marks drawn on the version on screen
 
-const latest = computed(() => versions.value[versions.value.length - 1]);
-const hasDrawing = computed(() => versions.value.length > 0);
+const hasDrawing = computed(() => current.value !== null);
+const isBusy = computed(() => busy.value !== "");
+// Encoded once per version, not on every keystroke in the text box.
+const previewUrl = computed(() =>
+  current.value ? svgDataUrl(current.value.svg) : "",
+);
 
 // Marks belong to the version they were drawn on, so a new version (or New) clears them.
-watch(latest, () => {
-  marks.value = [];
-});
+watch(
+  () => current.value?.svg,
+  () => {
+    marks.value = [];
+  },
+);
 
 /** Marks only point at things; Redraw needs a note saying what to do with them. */
 const needsNote = computed(
   () => marks.value.length > 0 && input.value.trim() === "",
 );
 
+/** Whether Generate/Redraw can run: not busy, no marks waiting for a note, something to send. */
+const canSubmit = computed(
+  () =>
+    !isBusy.value &&
+    !needsNote.value &&
+    (hasDrawing.value || input.value.trim() !== ""),
+);
+
 /** The grey hint next to Pen / Arrow / Erase. */
 const toolHint = computed(() => {
-  const count = marks.value.length;
-  if (count === 0) return "Draw on the preview to point at changes";
-  const what = count === 1 ? "1 mark" : `${count} marks`;
+  if (marks.value.length === 0)
+    return "Draw on the preview to point at changes";
+  const what = plural(marks.value.length, "mark");
   return needsNote.value
     ? `${what} · now type what should change`
     : `${what} · Redraw sends them with your change`;
@@ -83,9 +105,7 @@ function reset(): void {
   input.value = "";
   request.value = "";
   changes.value = [];
-  versions.value = [];
-  drawingId.value = undefined;
-  versionNumber.value = 0;
+  current.value = null;
   error.value = "";
 }
 
@@ -95,7 +115,7 @@ function buildPrompt(text: string, edits: string[]): string {
   return `${text}\n\nChanges to make:\n${edits.map((edit) => `- ${edit}`).join("\n")}`;
 }
 
-/** Runs one request to Claude (main also saves the result). Returns whether a new version was added. */
+/** Runs one request to Claude (main also saves the result). Returns whether it worked. */
 async function draw(send: () => Promise<DrawResult>): Promise<boolean> {
   busy.value = "drawing";
   error.value = "";
@@ -112,78 +132,70 @@ async function draw(send: () => Promise<DrawResult>): Promise<boolean> {
     error.value = result.error;
     return false;
   }
-  versions.value.push(result.svg);
-  drawingId.value = result.drawingId;
-  versionNumber.value = result.version;
+  current.value = {
+    svg: result.svg,
+    drawingId: result.drawingId,
+    version: result.version,
+  };
   return true;
 }
 
-/** The text box's button: the first Generate, then Redraw. */
+/** The text box's button: Generate before there's a drawing, then Redraw. */
 async function submit(): Promise<void> {
-  if (busy.value) return;
+  if (!canSubmit.value) {
+    if (needsNote.value) focusInput(); // marks are waiting for a note (the hint says so)
+    return;
+  }
   const text = input.value.trim();
-
-  if (!hasDrawing.value) {
-    if (!text) return;
-    request.value = text;
-    if (await draw(() => window.picasso.generateDiagram(text))) {
-      input.value = "";
-    } else {
-      request.value = "";
-    }
-    return;
-  }
-
-  if (needsNote.value) {
-    focusInput(); // marks are waiting for a note (the hint says so)
-    return;
-  }
-
-  if (!text) {
-    // An empty box means "try again": a fresh drawing of the request and its changes so far.
-    const prompt = buildPrompt(request.value, changes.value);
-    await draw(() => window.picasso.generateDiagram(prompt, drawingId.value));
-  } else {
-    // A change edits the diagram on screen, so only what was asked for moves.
-    const svg = latest.value;
-    const drawn = marks.value;
-    const send = async (): Promise<DrawResult> => {
-      const current: RedrawRequest = {
-        description: request.value,
-        svg,
-        change: text,
-        drawingId: drawingId.value,
-      };
-      if (drawn.length > 0) {
-        // Claude sees a picture of the diagram with the marks on top.
-        const marked = withMarks(svg, drawn);
-        current.marks = {
-          svg: marked,
-          png: await svgToPng(marked, pictureScale(marked)),
-        };
-      }
-      return window.picasso.redrawDiagram(current);
-    };
-    if (await draw(send)) {
-      changes.value = [...changes.value, text];
-      input.value = "";
-    }
-  }
+  if (!current.value) return generate(text);
+  await (text ? redraw(current.value, text) : retry(current.value.drawingId));
   focusInput();
+}
+
+/** The first drawing, from what was typed. */
+async function generate(text: string): Promise<void> {
+  request.value = text; // shown above the preview while it's drawn
+  if (await draw(() => window.picasso.generateDiagram(text))) input.value = "";
+  else request.value = "";
+}
+
+/** An empty Redraw: a fresh drawing of the request and its changes so far. */
+async function retry(drawingId: string): Promise<void> {
+  const prompt = buildPrompt(request.value, changes.value);
+  await draw(() => window.picasso.generateDiagram(prompt, drawingId));
+}
+
+/** A Redraw with a change: Claude edits the diagram on screen, guided by any marks. */
+async function redraw(on: Shown, change: string): Promise<void> {
+  const drawn = marks.value;
+  const sent = await draw(async () =>
+    window.picasso.redrawDiagram({
+      description: request.value,
+      svg: on.svg,
+      change,
+      drawingId: on.drawingId,
+      // Claude sees a picture of the diagram with the marks on top.
+      marks: drawn.length > 0 ? await markedPicture(on.svg, drawn) : undefined,
+    }),
+  );
+  if (sent) {
+    changes.value = [...changes.value, change];
+    input.value = "";
+  }
 }
 
 /** The green Draw button: main copies the image, hides the panel, and pastes it where you were typing. */
 async function approve(): Promise<void> {
-  const svg = latest.value;
-  if (!svg || busy.value) return;
+  const shown = current.value;
+  if (!shown || isBusy.value) return;
 
   busy.value = "copying";
   error.value = "";
   try {
     const result = await window.picasso.approveDiagram(
-      await svgToPng(svg),
-      drawingId.value,
-      versionNumber.value,
+      await svgToPng(shown.svg),
+      shown.drawingId,
+      shown.version,
     );
     if (result.ok) reset();
     else error.value = result.error;
@@ -226,12 +238,12 @@ onUnmounted(() => {
     <div class="body">
       <header class="titlebar">
         <span class="brand">Picasso</span>
-        <span v-if="target" class="into" :title="target.title">
+        <span v-if="target" class="into truncate" :title="target.title">
           into {{ target.title }}
         </span>
         <span class="spacer" />
         <button
-          v-if="request && !busy"
+          v-if="request && !isBusy"
           class="start-over"
           title="Clear this drawing"
           @click="startOver"
@@ -247,29 +259,25 @@ onUnmounted(() => {
 
       <section
         class="preview"
-        :class="{
-          stripes: !latest,
-          drawing: busy === 'drawing',
-        }"
+        :class="{ stripes: !current, drawing: busy === 'drawing' }"
       >
-        <img
-          v-if="latest"
-          :src="svgDataUrl(latest)"
-          :alt="`Diagram: ${request}`"
-        />
-        <MarkupLayer
-          v-if="latest"
-          v-model="marks"
-          :svg="latest"
-          :tool="tool"
-          :disabled="busy !== ''"
-        />
-        <span v-if="hasDrawing" class="badge">v{{ versionNumber }}</span>
+        <template v-if="current">
+          <img :src="previewUrl" :alt="`Diagram: ${request}`" />
+          <MarkupLayer
+            v-model="marks"
+            :svg="current.svg"
+            :tool="tool"
+            :disabled="isBusy"
+          />
+          <span class="badge version-badge">v{{ current.version }}</span>
+        </template>
 
-        <span v-if="busy === 'drawing'" class="label">
-          {{ hasDrawing ? "Redrawing…" : "Drawing…" }}
-        </span>
-        <span v-else-if="!latest" class="label">
+        <PencilLoader
+          v-if="busy === 'drawing'"
+          class="loader"
+          :caption="current ? 'Redrawing…' : 'Drawing…'"
+        />
+        <span v-else-if="!current" class="label">
           describe a diagram below
         </span>
       </section>
@@ -280,7 +288,7 @@ onUnmounted(() => {
             v-for="option in TOOLS"
             :key="option.tool"
             :class="{ active: tool === option.tool }"
-            :disabled="!hasDrawing || busy !== ''"
+            :disabled="!hasDrawing || isBusy"
             :title="option.title"
             @click="tool = option.tool"
           >
@@ -290,7 +298,7 @@ onUnmounted(() => {
         <span class="hint" :class="{ waiting: needsNote }">{{ toolHint }}</span>
       </div>
 
-      <p v-if="error" class="error">{{ error }}</p>
+      <p v-if="error" class="error-text panel-error">{{ error }}</p>
 
       <form class="ask" @submit.prevent="submit">
         <input
@@ -299,13 +307,9 @@ onUnmounted(() => {
           :placeholder="
             hasDrawing ? 'What should change?' : 'What should Picasso draw?'
           "
-          :disabled="busy !== ''"
+          :disabled="isBusy"
         />
-        <button
-          type="submit"
-          class="btn"
-          :disabled="busy !== '' || (!hasDrawing && !input.trim()) || needsNote"
-        >
+        <button type="submit" class="btn" :disabled="!canSubmit">
           {{ hasDrawing ? "Redraw" : "Generate" }}
         </button>
       </form>
@@ -315,7 +319,7 @@ onUnmounted(() => {
       <span class="footer-note">{{ footerNote }}</span>
       <button
         class="btn-primary"
-        :disabled="!hasDrawing || busy !== ''"
+        :disabled="!hasDrawing || isBusy"
         @click="approve"
       >
         Draw <span class="shortcut">Ctrl ↵</span>
@@ -354,11 +358,8 @@ onUnmounted(() => {
 
 .into {
   min-width: 0;
-  overflow: hidden;
   color: var(--text-muted);
   font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .spacer {
@@ -403,6 +404,7 @@ onUnmounted(() => {
   line-clamp: 2;
 }
 
+/* The preview centers its contents, so the absolutely placed loader and label sit in the middle. */
 .preview {
   position: relative;
   flex: 1;
@@ -424,43 +426,26 @@ onUnmounted(() => {
   transition: opacity 0.2s;
 }
 
+/* While redrawing, fade the old version behind the pencil. */
 .preview.drawing img {
   opacity: 0.3;
 }
 
-/* Slide the stripes while Claude is drawing. */
-.preview.drawing.stripes {
-  animation: stripes 0.8s linear infinite;
-}
-
-@keyframes stripes {
-  to {
-    background-position: 28.28px 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .preview.drawing.stripes {
-    animation: none;
-  }
-}
-
-.badge {
+.version-badge {
   position: absolute;
   top: 10px;
   left: 10px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--badge);
-  color: #ffffff;
-  font-size: 12px;
+}
+
+.loader,
+.label {
+  position: absolute;
 }
 
 .label {
-  position: absolute;
   padding: 2px 8px;
   border-radius: 4px;
-  background: rgb(248 245 240 / 0.9);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 12.5px;
@@ -484,13 +469,11 @@ onUnmounted(() => {
 }
 
 .hint.waiting {
-  color: #c2410c;
+  color: var(--hint);
 }
 
-.error {
+.panel-error {
   margin: -4px 0 0;
-  color: var(--danger);
-  font-size: 13px;
 }
 
 .ask {
@@ -504,7 +487,7 @@ onUnmounted(() => {
 }
 
 .ask:focus-within {
-  border-color: #d6cfc6;
+  border-color: var(--border-strong);
 }
 
 .ask input {

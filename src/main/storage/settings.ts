@@ -1,12 +1,12 @@
 import { app, safeStorage } from "electron";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SaveApiKeyResult } from "@shared/ipc";
+import type { Result } from "@shared/ipc";
 
 // Lives in Picasso's own folder (%APPDATA%/picasso), never in the project.
 const apiKeyPath = (): string => join(app.getPath("userData"), "apiKey.bin");
 
-export async function saveApiKey(key: unknown): Promise<SaveApiKeyResult> {
+export async function saveApiKey(key: unknown): Promise<Result> {
   // Anything can arrive over IPC, so check it here instead of trusting the renderer.
   const trimmed = typeof key === "string" ? key.trim() : "";
   if (!trimmed) return { ok: false, error: "Paste an API key first." };

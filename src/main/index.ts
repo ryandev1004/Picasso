@@ -5,11 +5,13 @@ import { registerShortcuts, unregisterShortcuts } from "./system/shortcuts";
 import { registerIpcHandlers } from "./ipc";
 import { createTray } from "./system/tray";
 import { wasLaunchedAtLogin } from "./system/launchAtLogin";
+import { win32 } from "./native/win32";
 
 // Only one Picasso may run at a time, otherwise two copies fight over the global hotkey.
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
-} else {
+if (app.requestSingleInstanceLock()) startPicasso();
+else app.quit();
+
+function startPicasso(): void {
   // Hold onto the tray, or it can be garbage-collected and the icon vanishes.
   let tray: Tray | null = null;
 
@@ -24,6 +26,8 @@ if (!app.requestSingleInstanceLock()) {
     // Create the panel up front (hidden) so the hotkey opens it instantly.
     createPanelWindow();
     registerShortcuts();
+    // Load the Windows functions for auto-paste now, not on the first hotkey press.
+    win32();
 
     tray = createTray();
 

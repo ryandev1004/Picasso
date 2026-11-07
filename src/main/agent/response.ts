@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { AgentResponse, RedrawRequest } from "@shared/ipc";
+import type { RedrawRequest, Result } from "@shared/ipc";
 import {
   MODEL,
   EFFORT,
@@ -8,6 +8,9 @@ import {
   redrawPrompt,
 } from "./prompts";
 import { readApiKey } from "../storage/settings";
+
+/** What one request to Claude gives back: the diagram, plus its name if Claude included one. */
+export type AgentResponse = Result<{ svg: string; title?: string }>;
 
 /** Draws a new diagram from a description. */
 export function generateDiagram(prompt: string): Promise<AgentResponse> {
@@ -36,12 +39,13 @@ export function redrawDiagram(request: RedrawRequest): Promise<AgentResponse> {
 
 /** Sends one message to Claude and pulls the SVG out of the reply. */
 async function requestDiagram(
-  prompt: Anthropic.MessageParam["content"],
+  content: Anthropic.MessageParam["content"],
 ): Promise<AgentResponse> {
   // Read the key on every call, so a key saved or changed in Settings is used right away.
   const apiKey = await readApiKey();
-  if (!apiKey)
+  if (!apiKey) {
     return { ok: false, error: "Add your Claude API key in Settings first." };
+  }
 
   const client = new Anthropic({ apiKey });
   const started = Date.now();
@@ -54,7 +58,7 @@ async function requestDiagram(
         max_tokens: MAX_TOKENS,
         system: SYSTEM_PROMPT,
         output_config: { effort: EFFORT },
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "user", content }],
       })
       .finalMessage();
   } catch (error) {
@@ -96,7 +100,8 @@ async function requestDiagram(
     };
   }
 
-  return { ok: true, svg: text.slice(start, end + "</svg>".length) };
+  const svg = text.slice(start, end + "</svg>".length);
+  return { ok: true, svg, title: titleFrom(svg) };
 }
 
 /** Turns an SDK error into a message for the user. Most specific checks come first. */
@@ -110,4 +115,21 @@ function describeError(error: unknown): string {
   if (error instanceof Anthropic.APIError)
     return `Claude returned an error (${error.status}). Try again.`;
   return "Something went wrong while drawing. Try again.";
+}
+
+/** The diagram's name from its hidden <title> element, which the system prompt asks for. */
+function titleFrom(svg: string): string | undefined {
+  const match = /<title[^>]*>([^<]{1,200})<\/title>/i.exec(svg);
+  if (!match) return undefined;
+  const title = decodeEntities(match[1]).replace(/\s+/g, " ").trim();
+  return title ? title.slice(0, 80) : undefined;
+}
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&");
 }

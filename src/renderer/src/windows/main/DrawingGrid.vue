@@ -1,10 +1,30 @@
 <script setup lang="ts">
 import type { DrawingSummary } from "@shared/ipc";
-import { formatDay, versionLabel } from "@renderer/lib/dates";
+import { formatDay } from "@renderer/lib/dates";
+import { withVersions } from "@renderer/lib/format";
 import { svgDataUrl } from "@renderer/lib/svgImage";
 
-defineProps<{ drawings: DrawingSummary[]; selectedId: string | null }>();
+// The grid of thumbnail cards. With no drawings at all it shows one placeholder card,
+// with `emptyHint` underneath, where the first drawing will go.
+defineProps<{
+  drawings: DrawingSummary[];
+  selectedId: string | null;
+  emptyHint?: string;
+}>();
 defineEmits<{ select: [id: string] }>();
+
+// Turning an SVG into a data URL isn't free, and the grid re-renders on every Search
+// keystroke, so each thumbnail's URL is kept until that drawing changes.
+const thumbnails = new Map<string, string>();
+function thumbnail(drawing: DrawingSummary): string {
+  const key = `${drawing.id}@${drawing.updatedAt}`;
+  let url = thumbnails.get(key);
+  if (!url) {
+    url = svgDataUrl(drawing.latestSvg);
+    thumbnails.set(key, url);
+  }
+  return url;
+}
 </script>
 
 <template>
@@ -17,16 +37,21 @@ defineEmits<{ select: [id: string] }>();
       @click="$emit('select', drawing.id)"
     >
       <span class="thumb">
-        <img :src="svgDataUrl(drawing.latestSvg)" :alt="drawing.title" />
+        <img :src="thumbnail(drawing)" :alt="drawing.title" />
       </span>
-      <span class="card-title">{{ drawing.title }}</span>
-      <span class="card-sub">
-        {{ formatDay(drawing.updatedAt) }}
-        <template v-if="drawing.versionCount > 1">
-          · {{ versionLabel(drawing.versionCount) }}
-        </template>
+      <span class="card-title truncate">{{ drawing.title }}</span>
+      <span class="card-sub truncate">
+        {{ withVersions(formatDay(drawing.updatedAt), drawing.versionCount) }}
       </span>
     </button>
+
+    <article v-if="drawings.length === 0" class="card">
+      <span class="thumb stripes">
+        <span class="placeholder-label">your first drawing</span>
+      </span>
+      <span class="card-title">No drawings yet</span>
+      <span v-if="emptyHint" class="card-sub">{{ emptyHint }}</span>
+    </article>
   </section>
 </template>
 
@@ -55,12 +80,16 @@ defineEmits<{ select: [id: string] }>();
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface);
   transition: border-color 0.15s;
 }
 
-.card:hover .thumb {
-  border-color: #d6cfc6;
+/* Scoped styles win over the global .stripes, so only plain thumbnails get the white. */
+.thumb:not(.stripes) {
+  background: var(--surface);
+}
+
+button.card:hover .thumb {
+  border-color: var(--border-strong);
 }
 
 .card.active .thumb {
@@ -74,11 +103,10 @@ defineEmits<{ select: [id: string] }>();
   object-fit: contain;
 }
 
-.card-title,
-.card-sub {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.placeholder-label {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .card-title {

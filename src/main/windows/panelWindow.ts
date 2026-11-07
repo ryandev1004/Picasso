@@ -1,7 +1,8 @@
 import { BrowserWindow, screen } from "electron";
 import { IPC } from "@shared/ipc";
-import { loadPage, preloadPath } from "./loadPage";
+import { loadPage, webPreferences } from "./loadPage";
 import { getTarget, rememberTarget } from "../paste/pasteTarget";
+import appIconPath from "../../../resources/icon.ico?asset";
 
 // Sized to the panel design (picassomini).
 const WIDTH = 480;
@@ -26,10 +27,8 @@ export function createPanelWindow(): BrowserWindow {
     fullscreenable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    webPreferences: {
-      preload: preloadPath,
-      sandbox: true,
-    },
+    icon: appIconPath,
+    webPreferences,
   });
 
   panel.on("closed", () => {

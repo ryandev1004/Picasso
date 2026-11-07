@@ -3,8 +3,11 @@ import { join } from "node:path";
 
 type Page = "index" | "panel";
 
-/** Path to the bundled preload script, shared by every window. */
-export const preloadPath = join(__dirname, "../preload/index.js");
+/** What every Picasso window shares: the preload bridge (window.picasso) and a sandboxed page. */
+export const webPreferences = {
+  preload: join(__dirname, "../preload/index.js"),
+  sandbox: true,
+};
 
 /**
  * Loads one of the renderer's HTML pages into a window.

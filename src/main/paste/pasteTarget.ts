@@ -179,16 +179,12 @@ const TITLE_ENDINGS = [
 /** "Bio 201 – Lecture 7 - Google Docs - Google Chrome" -> "Bio 201 – Lecture 7" */
 function cleanTitle(raw: string): string {
   let title = raw.trim().replace(/^[*●]\s*/, ""); // unsaved-file markers
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const ending of TITLE_ENDINGS) {
-      const next = title.replace(ending, "");
-      if (next !== title) {
-        title = next.trim();
-        changed = true;
-      }
-    }
-  }
+  // Keep stripping until nothing changes ("… - Google Docs - Google Chrome" has two endings).
+  let previous: string;
+  do {
+    previous = title;
+    for (const ending of TITLE_ENDINGS)
+      title = title.replace(ending, "").trim();
+  } while (title !== previous);
   return title.length > 40 ? `${title.slice(0, 39)}…` : title;
 }

@@ -5,20 +5,14 @@ import {
   isLaunchAtLoginEnabled,
   setLaunchAtLogin,
 } from "./launchAtLogin";
-// I just had claude generate me a temporary file for this cus I was too lazy to go find one myself.
-// Sue me.
+// Drawn from resources/tray.svg by `npm run icons`.
 import trayIconPath from "../../../resources/tray.ico?asset";
 
 export function createTray(): Tray {
-  let appIcon = new Tray(nativeImage.createFromPath(trayIconPath));
+  const tray = new Tray(nativeImage.createFromPath(trayIconPath));
 
   const contextMenu = Menu.buildFromTemplate([
-    {
-      label: "Show",
-      click: () => {
-        showMainWindow();
-      },
-    },
+    { label: "Show", click: () => showMainWindow() },
     {
       label: canLaunchAtLogin
         ? "Launch at login"
@@ -30,19 +24,11 @@ export function createTray(): Tray {
       click: (item) => setLaunchAtLogin(item.checked),
     },
     { type: "separator" },
-    {
-      label: "Exit",
-      click: () => {
-        app.quit();
-      },
-    },
+    { label: "Exit", click: () => app.quit() },
   ]);
 
-  appIcon.on("double-click", function () {
-    showMainWindow();
-  });
-
-  appIcon.setToolTip("Picasso");
-  appIcon.setContextMenu(contextMenu);
-  return appIcon;
+  tray.on("double-click", () => showMainWindow());
+  tray.setToolTip("Picasso");
+  tray.setContextMenu(contextMenu);
+  return tray;
 }

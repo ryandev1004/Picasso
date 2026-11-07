@@ -1,12 +1,13 @@
 import { BrowserWindow, shell } from "electron";
-import { loadPage, preloadPath } from "./loadPage";
+import { loadPage, webPreferences } from "./loadPage";
+import appIconPath from "../../../resources/icon.ico?asset";
 
 let win: BrowserWindow | null = null;
 
 // Height of the window-button strip. MainApp.vue's drag area reads it back with env(titlebar-area-height).
 const TITLE_BAR_HEIGHT = 36;
 
-/** The full app window: home screen, and later your saved drawings and settings. */
+/** The full app window: your saved drawings and Settings. */
 export function createMainWindow(): BrowserWindow {
   win = new BrowserWindow({
     width: 1000,
@@ -14,6 +15,7 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 640,
     minHeight: 480,
     title: "Picasso",
+    icon: appIconPath, // the taskbar and Alt+Tab icon (resources/icon.svg)
     show: false,
     autoHideMenuBar: true,
     // No Windows title bar, but keep its real minimize/maximize/close buttons (so Snap
@@ -24,10 +26,7 @@ export function createMainWindow(): BrowserWindow {
       symbolColor: "#24211c", // --text
       height: TITLE_BAR_HEIGHT,
     },
-    webPreferences: {
-      preload: preloadPath,
-      sandbox: true,
-    },
+    webPreferences,
   });
 
   win.once("ready-to-show", () => win?.show());

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Picasso's app icon: a pencil sketching a line, on the brand green. -->
+  <!-- Edit this, then run `npm run icons` to rebuild icon.ico and icon.png. -->
+  <defs>
+    <linearGradient id="green" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#62ab72"/>
+      <stop offset="1" stop-color="#3d834f"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#green)"/>
+
+  <!-- The line being drawn, trailing from the pencil tip. -->
+  <path d="M50 190 C 70 150, 92 214, 112 178 S 128 168, 132 168"
+        fill="none" stroke="#fdfaf6" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- The pencil: tip at (132, 168), body toward the top right. -->
+  <g transform="translate(132 168) rotate(-45)">
+    <path d="M0 0 L34 -17 L34 17 Z" fill="#f3dfb8"/>
+    <path d="M0 0 L12 -6 L12 6 Z" fill="#24211c"/>
+    <rect x="34" y="-17" width="74" height="34" fill="#fdfaf6"/>
+    <rect x="34" y="-17" width="74" height="11" fill="#ffffff"/>
+    <rect x="108" y="-17" width="11" height="34" fill="#c9c2b8"/>
+    <rect x="119" y="-17" width="20" height="34" rx="7" fill="#e5484d"/>
+  </g>
+</svg>

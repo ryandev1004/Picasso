@@ -31,8 +31,14 @@ const viewBox = computed(
 const draft = ref<Mark | null>(null); // the mark being drawn right now
 let erasing = false;
 
-const shown = computed(() =>
-  draft.value ? [...marks.value, draft.value] : marks.value,
+// Finished marks' shapes are worked out once; only the mark being drawn changes on every move.
+const committedShapes = computed(() =>
+  marks.value.flatMap((mark) => shapesFor(mark, width.value)),
+);
+const shapes = computed(() =>
+  draft.value
+    ? [...committedShapes.value, ...shapesFor(draft.value, width.value)]
+    : committedShapes.value,
 );
 
 /** Screen position → diagram coordinates. */
@@ -71,6 +77,7 @@ function onDown(event: PointerEvent): void {
 }
 
 function onMove(event: PointerEvent): void {
+  if (!erasing && !draft.value) return; // just hovering
   const point = toDiagram(event);
   if (erasing) {
     eraseAt(point);
@@ -116,18 +123,16 @@ function onUp(): void {
     @pointerup="onUp"
     @pointercancel="onUp"
   >
-    <template v-for="(mark, i) in shown" :key="i">
-      <path
-        v-for="(shape, j) in shapesFor(mark, width)"
-        :key="j"
-        :d="shape.d"
-        :fill="shape.filled ? MARK_COLOR : 'none'"
-        :stroke="shape.filled ? 'none' : MARK_COLOR"
-        :stroke-width="width"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </template>
+    <path
+      v-for="(shape, i) in shapes"
+      :key="i"
+      :d="shape.d"
+      :fill="shape.filled ? MARK_COLOR : 'none'"
+      :stroke="shape.filled ? 'none' : MARK_COLOR"
+      :stroke-width="width"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
   </svg>
 </template>
 

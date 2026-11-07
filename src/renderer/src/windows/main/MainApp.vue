@@ -8,18 +8,20 @@ import SettingsView from "./SettingsView.vue";
 // Two screens is too few for a router; a ref that picks one is enough.
 const view = ref<"drawings" | "settings">("drawings");
 const info = ref<AppInfo | null>(null);
-const hotkeyKeys = computed(() => info.value?.hotkey.split("+") ?? []);
+const hotkeyLabel = computed(() => info.value?.hotkey.replaceAll("+", " "));
 
 const drawings = ref<DrawingSummary[]>([]); // everything saved, newest first
 const loaded = ref(false);
+const revision = ref(0); // goes up on every reload, so the open drawing knows to refresh
 const query = ref("");
+const search = computed(() => query.value.trim());
 const selectedId = ref<string | null>(null);
 // With a drawing open: its versions ("thread") or the grid of everything ("all").
 const mode = ref<"thread" | "all">("all");
 
 /** Drawings whose title or description contains every word typed in Search. */
 const filtered = computed(() => {
-  const words = query.value.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return drawings.value;
   return drawings.value.filter((d) => {
     const text = `${d.title} ${d.description}`.toLowerCase();
@@ -31,6 +33,7 @@ const filtered = computed(() => {
 async function loadDrawings(): Promise<void> {
   drawings.value = await window.picasso.listDrawings();
   loaded.value = true;
+  revision.value++;
   // The open drawing was deleted: go back to the grid.
   if (
     selectedId.value &&
@@ -57,8 +60,11 @@ let stopListening: (() => void) | undefined;
 onMounted(async () => {
   // Drawings made in the panel show up here right away.
   stopListening = window.picasso.onDrawingsChanged(loadDrawings);
-  info.value = await window.picasso.getAppInfo();
-  await loadDrawings();
+  const [appInfo] = await Promise.all([
+    window.picasso.getAppInfo(),
+    loadDrawings(),
+  ]);
+  info.value = appInfo;
 });
 
 onUnmounted(() => stopListening?.());
@@ -72,9 +78,9 @@ onUnmounted(() => stopListening?.());
     <aside class="sidebar">
       <div class="brand logo">Picasso</div>
 
-      <button class="new-drawing" @click="newDrawing">
+      <button class="btn new-drawing" @click="newDrawing">
         New drawing
-        <span class="keys">{{ hotkeyKeys.join(" ") }}</span>
+        <span class="keys">{{ hotkeyLabel }}</span>
       </button>
 
       <input
@@ -89,7 +95,7 @@ onUnmounted(() => stopListening?.());
         class="list"
         :drawings="filtered"
         :selected-id="view === 'drawings' ? selectedId : null"
-        :searching="query.trim() !== ''"
+        :searching="search !== ''"
         :loaded="loaded"
         @select="select"
       />
@@ -109,8 +115,9 @@ onUnmounted(() => stopListening?.());
       :drawings="filtered"
       :total="drawings.length"
       :loaded="loaded"
+      :revision="revision"
       :selected-id="selectedId"
-      :query="query.trim()"
+      :query="search"
       :info="info"
       @select="select"
     />
@@ -149,6 +156,7 @@ onUnmounted(() => stopListening?.());
   font-size: 21px;
 }
 
+/* A .btn laid out as a row, with the hotkey on the right. */
 .new-drawing {
   display: flex;
   align-items: center;
@@ -156,14 +164,7 @@ onUnmounted(() => stopListening?.());
   flex-shrink: 0;
   height: 36px;
   padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
-}
-
-.new-drawing:hover {
-  background: var(--surface-soft);
 }
 
 .keys {
@@ -183,7 +184,7 @@ onUnmounted(() => stopListening?.());
 }
 
 .search:focus {
-  border-color: #d6cfc6;
+  border-color: var(--border-strong);
 }
 
 .search::placeholder {

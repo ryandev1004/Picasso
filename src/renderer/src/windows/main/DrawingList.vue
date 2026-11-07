@@ -6,9 +6,9 @@ import {
   formatDay,
   formatTime,
   groupFor,
-  versionLabel,
   type DateGroup,
 } from "@renderer/lib/dates";
+import { withVersions } from "@renderer/lib/format";
 
 const props = defineProps<{
   drawings: DrawingSummary[];
@@ -21,10 +21,17 @@ defineEmits<{ select: [id: string] }>();
 /** The drawings under Today, Yesterday… headings. They arrive newest first, so each group is too. */
 const groups = computed(() => {
   const now = new Date();
-  return DATE_GROUPS.map((label) => ({
-    label,
-    items: props.drawings.filter((d) => groupFor(d.updatedAt, now) === label),
-  })).filter((group) => group.items.length > 0);
+  const byGroup = new Map<DateGroup, DrawingSummary[]>();
+  for (const drawing of props.drawings) {
+    const group = groupFor(drawing.updatedAt, now);
+    const items = byGroup.get(group);
+    if (items) items.push(drawing);
+    else byGroup.set(group, [drawing]);
+  }
+  return DATE_GROUPS.flatMap((label) => {
+    const items = byGroup.get(label);
+    return items ? [{ label, items }] : [];
+  });
 });
 
 /** The grey line under each title: a time for the last two days, a date before that. */
@@ -33,9 +40,7 @@ function subtitle(drawing: DrawingSummary, group: DateGroup): string {
     group === "Today" || group === "Yesterday"
       ? formatTime(drawing.updatedAt)
       : formatDay(drawing.updatedAt);
-  return drawing.versionCount > 1
-    ? `${when} · ${versionLabel(drawing.versionCount)}`
-    : when;
+  return withVersions(when, drawing.versionCount);
 }
 </script>
 
@@ -58,8 +63,8 @@ function subtitle(drawing: DrawingSummary, group: DateGroup): string {
         :class="{ active: drawing.id === selectedId }"
         @click="$emit('select', drawing.id)"
       >
-        <span class="title">{{ drawing.title }}</span>
-        <span class="sub">{{ subtitle(drawing, group.label) }}</span>
+        <span class="title truncate">{{ drawing.title }}</span>
+        <span class="sub truncate">{{ subtitle(drawing, group.label) }}</span>
       </button>
     </section>
   </nav>
@@ -102,13 +107,6 @@ h3 {
 
 .item.active {
   background: var(--fill-strong);
-}
-
-.title,
-.sub {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .title {

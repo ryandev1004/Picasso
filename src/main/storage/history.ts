@@ -11,6 +11,7 @@ import {
 import { join } from "node:path";
 import type {
   Drawing,
+  DrawingInfo,
   DrawingSummary,
   DrawingVersion,
   VersionKind,
@@ -30,19 +31,14 @@ type StoredVersion = Omit<DrawingVersion, "svg" | "marksSvg"> & {
 };
 
 /** drawing.json */
-interface StoredDrawing {
-  id: string;
-  title: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-  versions: StoredVersion[];
-}
+type StoredDrawing = DrawingInfo & { versions: StoredVersion[] };
 
 /** What a newly drawn version brings with it. */
 export interface NewVersion {
-  /** The drawing to add to. Missing, invalid or deleted means a new drawing is started. */
-  drawingId?: unknown;
+  /** The drawing to add to. Missing or deleted means a new drawing is started. */
+  drawingId?: string;
+  /** The diagram's name from Claude, used if this starts a new drawing. */
+  title?: string;
   description: string;
   svg: string;
   kind: VersionKind;
@@ -60,13 +56,25 @@ export function isDrawingId(id: unknown): id is string {
   return typeof id === "string" && ID_PATTERN.test(id);
 }
 
-function drawingsDir(): string {
-  return join(app.getPath("userData"), "drawings");
+let notifyChanged = (): void => {};
+
+/** Runs `listener` after every change to history: a new version, an insert, or a delete. */
+export function onDrawingsChanged(listener: () => void): void {
+  notifyChanged = listener;
 }
 
+const drawingsDir = (): string => join(app.getPath("userData"), "drawings");
+
 function drawingDir(id: string): string {
+  if (!isDrawingId(id)) throw new Error(`Not a drawing id: ${id}`);
   return join(drawingsDir(), id);
 }
+
+const metaPath = (id: string): string => join(drawingDir(id), "drawing.json");
+const svgPath = (id: string, version: number): string =>
+  join(drawingDir(id), `v${version}.svg`);
+const marksPath = (id: string, version: number): string =>
+  join(drawingDir(id), `v${version}-marks.svg`);
 
 /**
  * Saves a freshly drawn version and returns where it went. A failed write is logged rather
@@ -75,14 +83,12 @@ function drawingDir(id: string): string {
 export async function addVersion(
   input: NewVersion,
 ): Promise<{ drawingId: string; version: number }> {
-  const existing = isDrawingId(input.drawingId)
-    ? await readMeta(input.drawingId)
-    : null;
+  const existing = input.drawingId ? await readMeta(input.drawingId) : null;
   const now = new Date().toISOString();
 
   const meta: StoredDrawing = existing ?? {
     id: randomUUID(),
-    title: titleFrom(input.svg) ?? shorten(input.description),
+    title: input.title ?? shorten(input.description),
     description: input.description,
     createdAt: now,
     updatedAt: now,
@@ -90,11 +96,12 @@ export async function addVersion(
   };
 
   const version = meta.versions.length + 1;
+  // Undefined fields are left out of drawing.json.
   meta.versions.push({
     number: version,
     kind: existing ? input.kind : "first",
-    ...(input.change ? { change: input.change } : {}),
-    ...(input.marksSvg ? { marked: true } : {}),
+    change: input.change || undefined,
+    marked: input.marksSvg ? true : undefined,
     createdAt: now,
     inserted: false,
   });
@@ -102,22 +109,15 @@ export async function addVersion(
 
   try {
     await mkdir(drawingDir(meta.id), { recursive: true });
-    await writeFile(
-      join(drawingDir(meta.id), `v${version}.svg`),
-      input.svg,
-      "utf8",
-    );
+    await writeFile(svgPath(meta.id, version), input.svg, "utf8");
     if (input.marksSvg) {
-      await writeFile(
-        join(drawingDir(meta.id), `v${version}-marks.svg`),
-        input.marksSvg,
-        "utf8",
-      );
+      await writeFile(marksPath(meta.id, version), input.marksSvg, "utf8");
     }
     await writeMeta(meta);
   } catch (error) {
     console.error("[picasso] couldn't save the drawing:", error);
   }
+  notifyChanged();
   return { drawingId: meta.id, version };
 }
 
@@ -128,6 +128,7 @@ export async function markInserted(id: string, version: number): Promise<void> {
   if (!meta || !entry || entry.inserted) return;
   entry.inserted = true;
   await writeMeta(meta);
+  notifyChanged();
 }
 
 /** Every drawing, newest first. Folders that can't be read are skipped. */
@@ -142,9 +143,9 @@ export async function listDrawings(): Promise<DrawingSummary[]> {
   const summaries = await Promise.all(
     ids.map(async (id): Promise<DrawingSummary | null> => {
       const meta = await readMeta(id);
-      const latest = meta?.versions[meta.versions.length - 1];
+      const latest = meta?.versions.at(-1);
       if (!meta || !latest) return null;
-      const latestSvg = await readSvg(id, latest.number);
+      const latestSvg = await readText(svgPath(id, latest.number));
       if (latestSvg === null) return null;
       return {
         id,
@@ -170,73 +171,60 @@ export async function getDrawing(id: string): Promise<Drawing | null> {
   const meta = await readMeta(id);
   if (!meta) return null;
 
-  const versions: DrawingVersion[] = [];
-  for (const { marked, ...entry } of meta.versions) {
-    const svg = await readSvg(id, entry.number);
-    if (svg === null) continue;
-    const marksSvg = marked ? await readSvg(id, entry.number, "-marks") : null;
-    versions.push({ ...entry, svg, ...(marksSvg ? { marksSvg } : {}) });
-  }
-  return { ...meta, versions };
+  // Read every version's files at once instead of one after another.
+  const versions = await Promise.all(
+    meta.versions.map(
+      async ({ marked, ...entry }): Promise<DrawingVersion | null> => {
+        const [svg, marksSvg] = await Promise.all([
+          readText(svgPath(id, entry.number)),
+          marked ? readText(marksPath(id, entry.number)) : null,
+        ]);
+        return svg === null
+          ? null
+          : { ...entry, svg, marksSvg: marksSvg ?? undefined };
+      },
+    ),
+  );
+  return {
+    ...meta,
+    versions: versions.filter((v): v is DrawingVersion => v !== null),
+  };
 }
 
 export async function deleteDrawing(id: string): Promise<void> {
   await rm(drawingDir(id), { recursive: true, force: true });
+  notifyChanged();
 }
 
 async function readMeta(id: string): Promise<StoredDrawing | null> {
+  const text = await readText(metaPath(id));
+  if (text === null) return null;
   try {
-    const meta = JSON.parse(
-      await readFile(join(drawingDir(id), "drawing.json"), "utf8"),
-    ) as StoredDrawing;
+    const meta = JSON.parse(text) as StoredDrawing;
     return Array.isArray(meta.versions) ? meta : null;
   } catch {
-    return null; // missing or damaged
+    return null; // damaged
   }
 }
 
 /** Writes to a temporary file first, so a crash mid-write can't leave half a drawing.json. */
 async function writeMeta(meta: StoredDrawing): Promise<void> {
-  const file = join(drawingDir(meta.id), "drawing.json");
+  const file = metaPath(meta.id);
   await writeFile(`${file}.tmp`, JSON.stringify(meta, null, 2), "utf8");
   await rename(`${file}.tmp`, file);
 }
 
-/** Reads vN.svg, or vN-marks.svg with `suffix` "-marks". */
-async function readSvg(
-  id: string,
-  version: number,
-  suffix = "",
-): Promise<string | null> {
+/** A file's text, or null if it's missing. */
+async function readText(path: string): Promise<string | null> {
   try {
-    return await readFile(
-      join(drawingDir(id), `v${version}${suffix}.svg`),
-      "utf8",
-    );
+    return await readFile(path, "utf8");
   } catch {
     return null;
   }
-}
-
-/** The diagram's name from its hidden <title> element, which the system prompt asks Claude for. */
-function titleFrom(svg: string): string | null {
-  const match = /<title[^>]*>([^<]{1,200})<\/title>/i.exec(svg);
-  if (!match) return null;
-  const title = decodeEntities(match[1]).replace(/\s+/g, " ").trim();
-  return title ? title.slice(0, 80) : null;
 }
 
 /** Fallback title: the start of what the student typed. */
 function shorten(description: string): string {
   const text = description.replace(/\s+/g, " ").trim();
   return text.length > 60 ? `${text.slice(0, 57)}…` : text;
-}
-
-function decodeEntities(text: string): string {
-  return text
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&amp;/g, "&");
 }
